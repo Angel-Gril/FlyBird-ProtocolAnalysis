@@ -1,0 +1,163 @@
+# 脱敏样例：结构与真实订阅一致，所有凭据均为占位符
+mixed-port: 7890
+allow-lan: true
+bind-address: '*'
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9090
+secret: <your-secret>
+unified-delay: true
+tcp-concurrent: true
+dns:
+  enable: true
+  ipv6: true
+  use-hosts: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  default-nameserver:
+  - 223.5.5.5
+  - 119.29.29.29
+  proxy-server-nameserver:
+  - 223.5.5.5
+  - 119.29.29.29
+  nameserver-policy:
+    +.google.com: https://dns.cloudflare.com/dns-query
+    +.googleapis.com: https://dns.cloudflare.com/dns-query
+    +.googleapis.cn: https://dns.cloudflare.com/dns-query
+    +.googlevideo.com: https://dns.cloudflare.com/dns-query
+    +.gstatic.com: https://dns.cloudflare.com/dns-query
+    +.youtube.com: https://dns.cloudflare.com/dns-query
+    +.youtu.be: https://dns.cloudflare.com/dns-query
+    +.facebook.com: https://dns.cloudflare.com/dns-query
+    +.twitter.com: https://dns.cloudflare.com/dns-query
+    +.x.com: https://dns.cloudflare.com/dns-query
+    +.github.com: https://dns.cloudflare.com/dns-query
+    +.githubusercontent.com: https://dns.cloudflare.com/dns-query
+    +.openai.com: https://dns.cloudflare.com/dns-query
+    +.chatgpt.com: https://dns.cloudflare.com/dns-query
+    +.anthropic.com: https://dns.cloudflare.com/dns-query
+  nameserver:
+  - https://doh.pub/dns-query
+  - https://dns.alidns.com/dns-query
+  - tls://dot.pub:853
+  - tls://dns.alidns.com:853
+  fallback:
+  - https://dns.cloudflare.com/dns-query
+  - https://dns.google/dns-query
+  - tls://1.1.1.1:853
+  - tls://8.8.8.8:853
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    ipcidr:
+    - 0.0.0.0/8
+    - 10.0.0.0/8
+    - 100.64.0.0/10
+    - 127.0.0.0/8
+    - 169.254.0.0/16
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 224.0.0.0/4
+    - 240.0.0.0/4
+    domain:
+    - +.google.com
+    - +.facebook.com
+    - +.youtube.com
+    - +.githubusercontent.com
+    - +.googlevideo.com
+    - +.googleapis.cn
+  fake-ip-filter:
+  - '*.lan'
+  - '*.local'
+  - '*.localhost'
+  - '*.test'
+  - localhost.ptlogin2.qq.com
+  - cf.komect.net
+  - '*.komect.net'
+  - ihr.hq.mogu
+  - '*.hq.mogu'
+  - +.stun.*.*
+  - +.stun.*.*.*
+  - +.stun.*.*.*.*
+  - lens.l.google.com
+  - '*.srv.nintendo.net'
+  - +.stun.playstation.net
+  - xbox.*.*.microsoft.com
+  - '*.*.xboxlive.com'
+  - +.msftncsi.com
+  - +.msftconnecttest.com
+proxies:
+- name: Node-01
+  type: vless
+  server: node.example.com
+  port: 10301
+  uuid: 00000000-0000-0000-0000-000000000001
+  udp: true
+  tls: true
+  flow: xtls-rprx-vision
+  skip-cert-verify: true
+  servername: example-01-aaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  network: tcp
+- name: Node-02
+  type: vless
+  server: node.example.com
+  port: 10302
+  uuid: 00000000-0000-0000-0000-000000000002
+  udp: true
+  tls: true
+  flow: xtls-rprx-vision
+  skip-cert-verify: true
+  servername: example-02-aaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  network: tcp
+- name: Node-03
+  type: vless
+  server: node.example.com
+  port: 10303
+  uuid: 00000000-0000-0000-0000-000000000003
+  udp: true
+  tls: true
+  flow: xtls-rprx-vision
+  skip-cert-verify: true
+  servername: example-03-aaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  network: tcp
+proxy-groups:
+- name: 🚀 节点选择
+  type: select
+  proxies:
+  - Node-01
+  - Node-02
+  - Node-03
+- name: 自动选择
+  type: url-test
+  proxies:
+  - Node-01
+  - Node-02
+  - Node-03
+  url: http://www.gstatic.com/generate_204
+  interval: 600
+  tolerance: 50
+  lazy: true
+- name: 故障转移
+  type: fallback
+  proxies:
+  - Node-01
+  - Node-02
+  - Node-03
+  url: http://www.gstatic.com/generate_204
+  interval: 300
+  lazy: true
+rules:
+- DOMAIN-SUFFIX,komect.net,DIRECT
+- DOMAIN-SUFFIX,hq.mogu,DIRECT
+- DOMAIN-SUFFIX,telegra.ph,🚀 节点选择
+- DOMAIN-SUFFIX,telegram.org,🚀 节点选择
+- IP-CIDR,91.108.4.0/22,🚀 节点选择,no-resolve
+- IP-CIDR,149.154.160.0/20,🚀 节点选择,no-resolve
+- IP-CIDR,120.232.181.162/32,🚀 节点选择,no-resolve
+- IP-CIDR,180.163.150.162/32,🚀 节点选择,no-resolve
+- DOMAIN-SUFFIX,google.com,🚀 节点选择
+- DOMAIN-SUFFIX,github.com,🚀 节点选择
+- DOMAIN-SUFFIX,youtube.com,🚀 节点选择
+- DOMAIN-SUFFIX,cn,DIRECT
+- GEOIP,CN,DIRECT
+- MATCH,🚀 节点选择

@@ -1,0 +1,26 @@
+# Apex 抓取配置样例
+# 复制到 /etc/apex-fetch/config 并 chmod 600
+
+# --- 账号 ---
+APEX_EMAIL="<account@example.com>"
+APEX_PASSWORD="<password>"
+
+# --- 端点（一般无需修改）---
+API_BASE=https://fbaxapi.apiv2.a047.com
+SUB_BASE=https://fbaxsub.web.ak005.com
+
+# --- 客户端证书（从你自己的客户端安装目录导出）---
+#   profile5_api_client.{crt,key}.pem          -> api.crt / api.key
+#   profile5_subscription_client.{crt,key}.pem -> sub.crt / sub.key
+CERT_DIR=/etc/apex-fetch/certs
+
+# --- 抓取器与输出 ---
+FETCHER=/opt/apex/apex_fetch.py
+OUT=/var/lib/apex-fetch/sub.yaml
+LOGDIR=/var/log/apex-fetch
+MIN_NODES=20
+
+# --- 可选：与 Private Subscription 等服务联动 ---
+# PRIVATE_CACHE_DIR=/var/lib/private-subscription/cache
+# PUBLISH_PRIVATE_SUBSCRIPTION=auto
+# HOOK_AFTER_PUBLISH="systemctl reload mihomo"

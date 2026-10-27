@@ -1,0 +1,16 @@
+[Unit]
+Description=定期刷新 Apex 订阅（每 6 小时）
+Documentation=file:/opt/apex/README.md
+
+[Timer]
+# 开机 3 分钟后跑一次
+OnBootSec=3min
+# 之后每 6 小时一次（按上次启动时间算）
+OnUnitActiveSec=6h
+# 错过的时间点开机后补跑
+Persistent=true
+# 打散，避免同时打服务器
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

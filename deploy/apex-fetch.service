@@ -1,0 +1,18 @@
+[Unit]
+Description=Apex 订阅抓取（纯协议，无需客户端）
+Documentation=file:/opt/apex/README.md
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/opt/apex/apex-fetch.sh run
+User=root
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=180
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
