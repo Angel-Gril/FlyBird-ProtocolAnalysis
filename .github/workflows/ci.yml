@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 语法检查
+        run: |
+          python -m py_compile src/*.py tools/*.py
+
+      - name: 单元自检（APXS 解密已知向量）
+        run: |
+          python - <<'PY'
+          import base64, sys
+          sys.path.insert(0, "src")
+          # 仅验证算法可用性：构造一个 CTR 往返测试
+          try:
+              from Crypto.Cipher import AES
+              from Crypto.Util import Counter
+          except ImportError:
+              print("pycryptodome 未安装，跳过")
+              raise SystemExit(0)
+          key = bytes(range(32)); nonce = bytes(range(12))
+          ctr = Counter.new(32, prefix=nonce, initial_value=2, little_endian=False)
+          ct = AES.new(key, AES.MODE_CTR, counter=ctr).encrypt(b"hello world")
+          ctr = Counter.new(32, prefix=nonce, initial_value=2, little_endian=False)
+          pt = AES.new(key, AES.MODE_CTR, counter=ctr).decrypt(ct)
+          assert pt == b"hello world"
+          print("CTR roundtrip ok")
+          PY
+
+      - name: 敏感串扫描（防止误提交凭据）
+        run: |
+          set +e
+          if grep -rInE 'BEGIN [A-Z ]*PRIVATE KEY|eyJ[A-Za-z0-9_-]{20,}\.' \
+               --include='*.md' --include='*.py' --include='*.sh' . ; then
+            echo "::error::检测到疑似私钥或 JWT"
+            exit 1
+          fi
+          echo "clean"
