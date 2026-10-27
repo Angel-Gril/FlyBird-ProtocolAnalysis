@@ -36,20 +36,12 @@ WORKDIR /app
 COPY src/apex_fetch.py /app/apex_fetch.py
 COPY src/apxs_decrypt.py /app/apxs_decrypt.py
 COPY deploy/docker-entrypoint.sh /app/entrypoint.sh
+COPY deploy/healthcheck.py /app/healthcheck.py
 RUN chmod +x /app/entrypoint.sh && chown -R apex:apex /app
 
 USER apex
 
 HEALTHCHECK --interval=10m --timeout=20s --start-period=2m --retries=3 \
-  CMD python3 - <<'PY' || exit 1
-import os, sys, time
-p = os.environ.get("OUT", "/output/sub.yaml")
-if not os.path.exists(p):
-    print("no output yet"); sys.exit(1)
-age = time.time() - os.path.getmtime(p)
-limit = int(os.environ.get("INTERVAL", "21600")) * 2 + 3600
-print(f"age={age:.0f}s limit={limit}s")
-sys.exit(0 if age < limit else 1)
-PY
+  CMD ["python3", "/app/healthcheck.py"]
 
 ENTRYPOINT ["/app/entrypoint.sh"]
