@@ -111,7 +111,54 @@ plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)
 
 ## 五、快速开始（纯协议）
 
-### 1. 准备证书
+三种方式，任选一种：
+
+| 方式 | 适合 | 需要 root |
+|---|---|---|
+| [Docker](#51-docker推荐) | 一台新机器、不想污染系统 | ❌ |
+| [systemd](#52-systemd) | 长期驻留的服务器 | ✅ |
+| [直接运行](#53-直接运行) | 临时验证 | ❌ |
+
+### 5.1 Docker（推荐）
+
+```bash
+# 1) 准备证书
+mkdir -p deploy/certs deploy/output
+cp api.crt api.key sub.crt sub.key deploy/certs/
+
+# 2) 填账号
+cp deploy/.env.example deploy/.env && chmod 600 deploy/.env
+$EDITOR deploy/.env
+
+# 3) 起服务（镜像内以 uid 1000 非 root 运行，根文件系统只读）
+cd deploy && docker compose up -d --build
+
+# 4) 看结果
+docker compose logs -f
+cat output/sub.yaml
+```
+
+单次运行（适合 cron / k8s Job）：
+
+```bash
+docker run --rm \
+  -v $PWD/certs:/certs:ro -v $PWD/output:/output \
+  -e APEX_EMAIL=... -e APEX_PASSWORD=... -e ONCE=1 \
+  apex-fetch:latest
+```
+
+镜像特性：`python:3.12-slim`、非 root、rootfs 只读、`cap_drop: ALL`、
+`no-new-privileges`、内置 HEALTHCHECK（输出过期即不健康）、日志轮转。
+
+### 5.2 systemd
+
+```bash
+sudo ./deploy/install.sh /path/to/certs
+sudo systemctl start apex-fetch.service
+/opt/apex/apex-fetch.sh status
+```
+
+### 5.3 直接运行
 
 从**你自己**已安装的客户端目录取 4 个文件（这是本机设备身份）：
 
@@ -122,26 +169,10 @@ profile5_subscription_client.crt.pem  → sub.crt
 profile5_subscription_client.key.pem  → sub.key
 ```
 
-### 2. 配置
-
 ```bash
 cp samples/config.sample /etc/apex-fetch/config
 chmod 600 /etc/apex-fetch/config
-$EDITOR /etc/apex-fetch/config     # 填账号密码与证书路径
-```
-
-### 3. 跑
-
-```bash
 python3 src/apex_fetch.py --config /etc/apex-fetch/config --out sub.yaml
-```
-
-### 4. 做成服务
-
-```bash
-sudo ./deploy/install.sh /path/to/certs
-sudo systemctl start apex-fetch.service
-/opt/apex/apex-fetch.sh status
 ```
 
 ---
@@ -172,7 +203,13 @@ sudo systemctl start apex-fetch.service
 │   ├── gdb/                      gdb 断点抓参与 dump 明文
 │   ├── netns/                    隔离运行官方 OpenWrt 客户端
 │   └── mem/aes_scan.c            [备用] AES-NI 密钥扫描内核
-├── deploy/                   # systemd 服务化
+├── deploy/                   # 服务化（systemd + Docker）
+│   ├── Dockerfile               非 root 镜像
+│   ├── docker-compose.yml       一键起服务
+│   ├── docker-entrypoint.sh     env → 配置 → 循环抓取
+│   ├── apex-fetch.sh            systemd 入口
+│   ├── apex-fetch.{service,timer}
+│   └── install.sh
 ├── samples/                  # 脱敏样例配置
 └── CHANGELOG.md
 ```

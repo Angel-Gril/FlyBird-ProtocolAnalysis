@@ -18,25 +18,48 @@ jobs:
         run: |
           python -m py_compile src/*.py tools/*.py
 
-      - name: 单元自检（APXS 解密已知向量）
+      - name: 单元自检（CTR 往返）
         run: |
+          pip install --quiet pycryptodome pyyaml
+          python - <<'PY'
+          from Crypto.Cipher import AES
+          from Crypto.Util import Counter
+
+          key, nonce = bytes(range(32)), bytes(range(12))
+
+          def ctr_encrypt(k, n, data):
+              c = Counter.new(32, prefix=n, initial_value=2, little_endian=False)
+              return AES.new(k, AES.MODE_CTR, counter=c).encrypt(data)
+
+          def ctr_decrypt(k, n, data):
+              c = Counter.new(32, prefix=n, initial_value=2, little_endian=False)
+              return AES.new(k, AES.MODE_CTR, counter=c).decrypt(data)
+
+          ct = ctr_encrypt(key, nonce, b"mixed-port: 7890")
+          assert ctr_decrypt(key, nonce, ct) == b"mixed-port: 7890"
+          print("CTR roundtrip ok")
+          PY
+
+      - name: APXS 信封自检（构造 → 解密）
+        run: |
+          pip install --quiet pycryptodome pyyaml
           python - <<'PY'
           import base64, sys
+          from Crypto.Cipher import AES
+          from Crypto.Util import Counter
           sys.path.insert(0, "src")
-          # 仅验证算法可用性：构造一个 CTR 往返测试
-          try:
-              from Crypto.Cipher import AES
-              from Crypto.Util import Counter
-          except ImportError:
-              print("pycryptodome 未安装，跳过")
-              raise SystemExit(0)
-          key = bytes(range(32)); nonce = bytes(range(12))
-          ctr = Counter.new(32, prefix=nonce, initial_value=2, little_endian=False)
-          ct = AES.new(key, AES.MODE_CTR, counter=ctr).encrypt(b"hello world")
-          ctr = Counter.new(32, prefix=nonce, initial_value=2, little_endian=False)
-          pt = AES.new(key, AES.MODE_CTR, counter=ctr).decrypt(ct)
-          assert pt == b"hello world"
-          print("CTR roundtrip ok")
+          import apxs_decrypt as A
+
+          plain = b"mixed-port: 7890\nproxies: []\n"
+          nonce = bytes(range(12))
+          key = base64.b64decode(A.KEY_APXS)
+          c = Counter.new(32, prefix=nonce, initial_value=2, little_endian=False)
+          ct = AES.new(key, AES.MODE_CTR, counter=c).encrypt(plain)
+          blob = (b"APXS" + b"\x02" + (1).to_bytes(4, "big") + (1).to_bytes(4, "big")
+                  + nonce + ct + b"\x00" * 16 + b"\x00" * 64)
+          out, aes_id, sign_id = A.decrypt(blob)
+          assert out == plain and (aes_id, sign_id) == (1, 1)
+          print("APXS roundtrip ok")
           PY
 
       - name: 敏感串扫描（防止误提交凭据）
@@ -48,3 +71,21 @@ jobs:
             exit 1
           fi
           echo "clean"
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: 构建镜像
+        run: docker build -f deploy/Dockerfile -t apex-fetch:ci .
+      - name: 冒烟测试（无凭据时应快速失败并给出提示）
+        run: |
+          set +e
+          out=$(docker run --rm apex-fetch:ci 2>&1)
+          code=$?
+          echo "$out"
+          echo "exit=$code"
+          test "$code" -eq 2
+          echo "$out" | grep -q "APEX_EMAIL"
+          echo "smoke ok"

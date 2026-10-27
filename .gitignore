@@ -13,6 +13,12 @@ sub.yaml
 !samples/*.yaml
 !deploy/*.yaml
 
+# Docker 部署产物
+deploy/.env
+deploy/certs/
+deploy/output/
+deploy/*.log
+
 # 逆向产物
 *.so
 *.exe

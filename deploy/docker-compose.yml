@@ -1,0 +1,38 @@
+# docker-compose 一键部署
+#
+#   cp deploy/.env.example deploy/.env      # 填账号
+#   mkdir -p deploy/certs deploy/output
+#   cp api.crt api.key sub.crt sub.key deploy/certs/
+#   cd deploy && docker compose up -d
+#
+# 输出：deploy/output/sub.yaml
+services:
+  apex-fetch:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: apex-fetch:latest
+    container_name: apex-fetch
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CERT_DIR: /certs
+      OUT: /output/sub.yaml
+      INTERVAL: "21600"
+    volumes:
+      - ./certs:/certs:ro
+      - ./output:/output
+    # 只读根文件系统，进一步收敛权限
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
