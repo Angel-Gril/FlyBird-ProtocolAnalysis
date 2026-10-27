@@ -35,6 +35,10 @@ $EDITOR .env        # 填 APEX_EMAIL / APEX_PASSWORD
 ## 二、启动
 
 ```bash
+# 方案一：直接用现成镜像（同时提供 amd64 / arm64）
+docker pull ghcr.io/angel-gril/apex-fetch:latest
+
+# 方案二：本地构建
 docker compose up -d --build
 docker compose logs -f
 ```

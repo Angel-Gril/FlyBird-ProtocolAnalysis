@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="APXS">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#0EA5A5"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#g)"/>
+  <!-- 信封轮廓 -->
+  <rect x="26" y="40" width="76" height="52" rx="8" fill="none" stroke="#fff" stroke-width="6" opacity="0.92"/>
+  <path d="M28 44 L64 70 L100 44" fill="none" stroke="#fff" stroke-width="6"
+        stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <!-- 锁扣 -->
+  <circle cx="64" cy="88" r="9" fill="#fff" opacity="0.92"/>
+  <rect x="60" y="88" width="8" height="12" rx="3" fill="#fff" opacity="0.92"/>
+</svg>
