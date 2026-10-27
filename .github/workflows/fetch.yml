@@ -1,0 +1,138 @@
+name: fetch
+
+# 定时抓取订阅（纯协议，无需客户端/服务器）
+#
+# 需要的 Secrets：
+#   APEX_EMAIL / APEX_PASSWORD
+#   APEX_API_CERT_B64 / APEX_API_KEY_B64
+#   APEX_SUB_CERT_B64 / APEX_SUB_KEY_B64
+#   生成（Windows）：
+#     [Convert]::ToBase64String([IO.File]::ReadAllBytes('api.crt'))
+#
+# 可选：
+#   vars.PUBLISH_ARTIFACT = true           上传 artifact（⚠️ 公开仓库任何人可下，别开）
+#   secrets.PUBLISH_REPO / PUBLISH_TOKEN   把结果推到一个私有仓库（推荐）
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apex-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PUBLISH_REPO: ${{ secrets.PUBLISH_REPO }}
+      PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装依赖
+        run: pip install --quiet pyyaml pycryptodome
+
+      - name: 还原证书
+        env:
+          API_CERT: ${{ secrets.APEX_API_CERT_B64 }}
+          API_KEY: ${{ secrets.APEX_API_KEY_B64 }}
+          SUB_CERT: ${{ secrets.APEX_SUB_CERT_B64 }}
+          SUB_KEY: ${{ secrets.APEX_SUB_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/certs"
+          printf '%s' "$API_CERT" | base64 -d > "$RUNNER_TEMP/certs/api.crt"
+          printf '%s' "$API_KEY"  | base64 -d > "$RUNNER_TEMP/certs/api.key"
+          printf '%s' "$SUB_CERT" | base64 -d > "$RUNNER_TEMP/certs/sub.crt"
+          printf '%s' "$SUB_KEY"  | base64 -d > "$RUNNER_TEMP/certs/sub.key"
+          chmod 600 "$RUNNER_TEMP/certs/"*.key
+          echo "证书已就位：$(ls "$RUNNER_TEMP/certs" | tr '\n' ' ')"
+
+      - name: 生成配置
+        env:
+          APEX_EMAIL: ${{ secrets.APEX_EMAIL }}
+          APEX_PASSWORD: ${{ secrets.APEX_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf 'APEX_EMAIL="%s"\nAPEX_PASSWORD="%s"\nCERT_DIR="%s"\nMIN_NODES=20\n' \
+            "$APEX_EMAIL" "$APEX_PASSWORD" "$RUNNER_TEMP/certs" > "$RUNNER_TEMP/apex.conf"
+          chmod 600 "$RUNNER_TEMP/apex.conf"
+
+      - name: 抓取并解密
+        run: |
+          set -euo pipefail
+          python3 src/apex_fetch.py \
+            --config "$RUNNER_TEMP/apex.conf" \
+            --out "$RUNNER_TEMP/sub.yaml"
+          echo "---- 校验 ----"
+          python3 - "$RUNNER_TEMP/sub.yaml" <<'PY'
+          import sys, yaml
+          d = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+          p, g, r = d.get("proxies") or [], d.get("proxy-groups") or [], d.get("rules") or []
+          print(f"proxies={len(p)} groups={len(g)} rules={len(r)}")
+          assert len(p) >= 20, "节点数过少"
+          for x in p:
+              assert all(k in x for k in ("name", "type", "server", "port")), x
+          print("ok")
+          PY
+
+      - name: 清理凭据
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/apex.conf"
+          rm -rf "$RUNNER_TEMP/certs"
+
+      - name: 上传产物（默认关闭）
+        if: ${{ vars.PUBLISH_ARTIFACT == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: subscription
+          path: ${{ runner.temp }}/sub.yaml
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: 推送到私有仓库（可选）
+        if: ${{ env.PUBLISH_REPO != '' }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/pub"
+          git clone --depth 1 "https://x-access-token:${PUBLISH_TOKEN}@github.com/${PUBLISH_REPO}.git" "$work"
+          cp "$RUNNER_TEMP/sub.yaml" "$work/sub.yaml"
+          cd "$work"
+          git config user.name  "apex-bot"
+          git config user.email "apex-bot@users.noreply.github.com"
+          git add sub.yaml
+          if git diff --cached --quiet; then
+            echo "无变化，跳过提交"
+          else
+            git commit -q -m "chore: refresh subscription $(date -u +%FT%TZ)"
+            git push -q origin HEAD
+            echo "已推送"
+          fi
+
+      - name: 摘要
+        if: always()
+        run: |
+          {
+            echo "### Apex 订阅抓取"
+            echo ""
+            if [ -f "$RUNNER_TEMP/sub.yaml" ]; then
+              echo "- 产物大小: $(stat -c%s "$RUNNER_TEMP/sub.yaml") B"
+              echo "- 节点数: $(python3 -c "import yaml,sys;print(len(yaml.safe_load(open(sys.argv[1]))['proxies']))" "$RUNNER_TEMP/sub.yaml" 2>/dev/null || echo '?')"
+            else
+              echo "- 未生成产物"
+            fi
+            echo ""
+            echo "> 产物含节点凭据，请勿在公开仓库中开启 artifact 上传。"
+          } >> "$GITHUB_STEP_SUMMARY"

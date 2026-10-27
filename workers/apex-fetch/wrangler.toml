@@ -1,0 +1,35 @@
+name = "apex-fetch"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# ---- KV：缓存订阅内容 ----
+# npx wrangler kv namespace create SUBS
+[[kv_namespaces]]
+binding = "SUBS"
+id = "<KV_NAMESPACE_ID>"
+
+# ---- mTLS 客户端证书（出站）----
+# npx wrangler mtls-certificate upload --cert api.crt --key api.key --name apex-api
+# npx wrangler mtls-certificate upload --cert sub.crt --key sub.key --name apex-sub
+[[mtls_certificates]]
+binding = "API_CERT"
+certificate_id = "<API_CERT_ID>"
+
+[[mtls_certificates]]
+binding = "SUB_CERT"
+certificate_id = "<SUB_CERT_ID>"
+
+# ---- 定时刷新（每 6 小时）----
+[triggers]
+crons = ["0 */6 * * *"]
+
+[vars]
+API_BASE = "https://fbaxapi.apiv2.a047.com"
+SUB_BASE = "https://fbaxsub.web.ak005.com"
+MAX_AGE_SECONDS = "21600"
+
+# secrets（用 wrangler secret put 设置，不要写在这里）
+#   APEX_EMAIL
+#   APEX_PASSWORD
+#   ACCESS_TOKEN

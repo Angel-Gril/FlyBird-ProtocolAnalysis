@@ -2,6 +2,29 @@
 
 本项目记录对目标客户端协议分析的完整过程。版本号对应**分析里程碑**，非软件版本。
 
+## [1.2.0] - 2026-10-27
+
+### 新增
+
+- **GitHub Actions 定时抓取**：`.github/workflows/fetch.yml`，cron 每 6 小时，
+  凭据全部走 secrets，任务结束清理证书；默认不产出可下载产物（防公开仓库泄露）
+- **Cloudflare Worker 边缘部署**：`workers/apex-fetch/`
+  - `POST /decode`：传 APXS 直接返回 YAML（k1 为公开常量，不需账号）
+  - `GET /sub?token=`：KV 缓存 + 过期刷新 + 失败回退
+  - Cron 每 6 小时自动刷新
+  - 依赖 Workers 的两项能力：**出站 mTLS**（`mtls_certificates`）与 **AES-CTR**（WebCrypto）
+- **WebCrypto 验证脚本**：`tools/verify_webcrypto.mjs`，与官方明文逐字节比对
+- **文档**：`docs/08-serverless.md`
+
+### 验证
+
+```
+$ node tools/verify_webcrypto.mjs apxs.bin plain.bin
+aesId=1 signId=1 密文=26806 明文=26806
+首行: mixed-port: 7890
+与官方明文逐字节一致: true
+```
+
 ## [1.1.0] - 2026-10-27
 
 ### 新增

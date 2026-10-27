@@ -47,3 +47,9 @@ Thumbs.db
 # 编辑器
 .vscode/
 .idea/
+
+# Cloudflare Worker
+workers/**/node_modules/
+workers/**/.wrangler/
+workers/**/.dev.vars
+wiki/

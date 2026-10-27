@@ -100,6 +100,8 @@ plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)
 | **A. Docker** | 新机器、不想污染系统 | ❌ |
 | **B. systemd** | 长期驻留的服务器 | ✅ |
 | **C. 直接运行** | 临时验证 | ❌ |
+| **D. Cloudflare Worker** | 多设备共享一个 URL | ❌ |
+| **E. GitHub Actions** | 定期归档 / CI 集成 | ❌ |
 
 > 三种方式都需要 **4 个证书文件**——它们是**本机设备身份**，从你自己已安装的客户端目录导出：
 >
@@ -147,6 +149,38 @@ cp samples/config.sample /etc/apex-fetch/config
 chmod 600 /etc/apex-fetch/config
 python3 src/apex_fetch.py --config /etc/apex-fetch/config --out sub.yaml
 ```
+
+### D. Cloudflare Worker（无需服务器）
+
+```bash
+cd workers/apex-fetch
+npx wrangler mtls-certificate upload --cert api.crt --key api.key --name apex-api
+npx wrangler mtls-certificate upload --cert sub.crt --key sub.key --name apex-sub
+npx wrangler kv namespace create SUBS   # 把 id 填进 wrangler.toml
+npx wrangler secret put APEX_EMAIL
+npx wrangler secret put APEX_PASSWORD
+npx wrangler secret put ACCESS_TOKEN   # openssl rand -hex 24
+npx wrangler deploy
+```
+
+然后：
+
+```bash
+curl -s "https://apex-fetch.<you>.workers.dev/sub?token=$ACCESS_TOKEN" -o sub.yaml
+curl -s -X POST --data-binary @apxs.bin https://apex-fetch.<you>.workers.dev/decode
+```
+
+Workers 原生支持 **出站 mTLS**（`mtls_certificates` 绑定）与 **AES-CTR**（WebCrypto），
+所以完整流程可以在边缘跑。详见 [workers/apex-fetch](workers/apex-fetch/README.md)。
+
+### E. GitHub Actions（定时归档）
+
+用 [`.github/workflows/fetch.yml`](.github/workflows/fetch.yml)：
+填好 6 个 secret（账号 + 4 个证书 base64），每 6 小时跑一次。
+
+> ⚠️ **公开仓库的 artifact 任何人可下载**，而订阅 YAML 含节点凭据。
+> 请使用私有仓库，或配置 `PUBLISH_REPO` 推到私有仓库，
+> 否则保持默认（不上传产物，只输出统计）。详见 [docs/08](docs/08-serverless.md)。
 
 预期输出：
 
@@ -218,7 +252,8 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 │   ├── 04-apxs-v2-format.md      APXS 格式与算法还原全过程
 │   ├── 05-approaches.md          四条路线
 │   ├── 06-toolchain.md           Blutter/pclntab/gdb/netns/MITM
-│   └── 07-hardening-cwe602.md    厂商侧加固建议
+│   ├── 07-hardening-cwe602.md    厂商侧加固建议
+│   └── 08-serverless.md          GitHub Actions / Cloudflare Worker 部署
 ├── reports/                  # 20 篇过程报告（已脱敏）
 ├── src/
 │   ├── apex_fetch.py            纯协议抓取器（生产用）
@@ -233,6 +268,7 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 │   ├── netns/                   隔离运行官方客户端
 │   └── mem/aes_scan.c           [备用] AES-NI 密钥扫描内核
 ├── deploy/                   # systemd + Docker
+├── workers/apex-fetch/       # Cloudflare Worker（边缘部署）
 └── samples/                  # 脱敏样例
 ```
 
