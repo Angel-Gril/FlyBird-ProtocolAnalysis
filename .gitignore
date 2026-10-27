@@ -1,0 +1,43 @@
+# 凭据与产物
+*.key
+*.pem
+*.crt
+!samples/**/*.crt
+certs/
+certs_724/
+**/profile5_*
+
+# 输出
+sub.yaml
+*.yaml
+!samples/*.yaml
+!deploy/*.yaml
+
+# 逆向产物
+*.so
+*.exe
+*.dll
+*.ipk
+*.apk
+*.bin
+blutter_asm/
+openwrt_pkg/
+backup_*/
+installed/
+refs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 日志与临时
+*.log
+/tmp/
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
