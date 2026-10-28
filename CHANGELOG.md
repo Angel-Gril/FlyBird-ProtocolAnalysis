@@ -4,6 +4,15 @@
 
 ## [未发布]
 
+### 新增
+
+- `scripts/local.sh`（Linux/macOS）与 `scripts/local.ps1`（Windows）一键脚本：
+  环境自检 → 自动识别并导入证书（`api.crt` 或 `profile5_*_client.{crt,key}.pem`）
+  → 写配置（600）→ 拉 v2/v1/both → 汇总。默认落在 `~/.apex-local/`（仓库之外）。
+- `scripts/_check_env.py` / `scripts/_summary.py`：两个平台共用的自检与汇总。
+- `apxs_decrypt.py` 重构：`argparse`（`-h` / `-f` / `--key`），AES 后端改为
+  `cryptography → pycryptodome → openssl` 三级回退，不再硬依赖 pycryptodome。
+
 ### 文档
 
 - `docs/03` 新增 §3.7 **证书与密钥的职责边界**：

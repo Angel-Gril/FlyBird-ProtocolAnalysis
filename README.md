@@ -93,15 +93,16 @@ plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)
 
 ## 🚀 快速开始
 
-五种部署形态，均支持 **v2 / v1 / both** 三种线路：
+六种部署形态，均支持 **v2 / v1 / both** 三种线路：
 
 | 方式 | 适合 | 需要 root |
 |---|---|---|
-| **A. Docker** | 新机器、不想污染系统 | ❌ |
-| **B. systemd** | 长期驻留的服务器 | ✅ |
-| **C. 直接运行** | 临时验证 | ❌ |
-| **D. Cloudflare Worker** | 多设备共享一个 URL | ❌ |
-| **E. GitHub Actions** | 定期归档 / CI 集成 | ❌ |
+| **A. 一键脚本**（`scripts/local.*`） | 本地快速跑通 | ❌ |
+| **B. Docker** | 新机器、不想污染系统 | ❌ |
+| **C. systemd** | 长期驻留的服务器 | ✅ |
+| **D. 直接运行 python** | 调试、临时验证 | ❌ |
+| **E. Cloudflare Worker** | 多设备共享一个 URL | ❌ |
+| **F. GitHub Actions** | 定期归档 / CI 集成 | ❌ |
 
 ### 双线路对照（重要）
 
@@ -137,7 +138,43 @@ python3 src/apex_fetch.py --config cfg --source both   # 两份合并
 > 两张证书在 **Cloudflare Workers**（mTLS 绑定）与 **GitHub Actions**（Secrets）上都能直接部署，
 > 见 [docs/08 §8.5](docs/08-serverless.md)。
 
-### A. Docker（推荐）
+### A. 一键脚本（本地最快）
+
+Linux / macOS：
+
+```bash
+./scripts/local.sh all --certs /path/to/客户端证书目录
+```
+
+Windows（PowerShell）：
+
+```powershell
+.\scripts\local.ps1 all --certs "C:\path\to\客户端证书目录"
+```
+
+脚本会依次完成：环境自检 → 导入证书（自动识别 `api.crt/api.key` 与 `profile5_*_client.{crt,key}.pem` 两种命名）
+→ 交互输入账号（可改用 `APEX_EMAIL` / `APEX_PASSWORD` 环境变量）→ 拉取 v2 / v1 / both → 打印汇总。
+
+产物默认在 `~/.apex-local/out/`（仓库之外，不会被误提交）：
+
+```
+~/.apex-local/
+├── certs/     api.crt api.key sub.crt sub.key
+├── config     账号 + 证书路径（600）
+└── out/       v2.yaml  v1.yaml  both.yaml
+```
+
+单独命令：
+
+```bash
+./scripts/local.sh check      # 只检查环境
+./scripts/local.sh init --certs <目录>
+./scripts/local.sh run --source v1
+```
+
+> 注：`local.ps1` 存为 **UTF-8 with BOM**，否则 Windows PowerShell 5.1 会按 ANSI 读取导致中文乱码。
+
+### B. Docker
 
 ```bash
 # 直接用现成镜像（amd64 / arm64）
@@ -161,7 +198,7 @@ docker run --rm \
   ghcr.io/angel-gril/apex-fetch:latest
 ```
 
-### B. systemd
+### C. systemd（服务器长期驻留）
 
 ```bash
 sudo ./deploy/install.sh /path/to/certs
@@ -169,7 +206,7 @@ sudo systemctl start apex-fetch.service
 /opt/apex/apex-fetch.sh status
 ```
 
-### C. 直接运行
+### D. 直接运行 python
 
 ```bash
 cp samples/config.sample /etc/apex-fetch/config
@@ -177,7 +214,7 @@ chmod 600 /etc/apex-fetch/config
 python3 src/apex_fetch.py --config /etc/apex-fetch/config --out sub.yaml
 ```
 
-### D. Cloudflare Worker（无需服务器）
+### E. Cloudflare Worker（无需服务器）
 
 ```bash
 cd workers/apex-fetch
@@ -200,7 +237,7 @@ curl -s -X POST --data-binary @apxs.bin https://apex-fetch.<you>.workers.dev/dec
 Workers 原生支持 **出站 mTLS**（`mtls_certificates` 绑定）与 **AES-CTR**（WebCrypto），
 所以完整流程可以在边缘跑。详见 [workers/apex-fetch](workers/apex-fetch/README.md)。
 
-### E. GitHub Actions（定时归档）
+### F. GitHub Actions（定时归档）
 
 用 [`.github/workflows/fetch.yml`](.github/workflows/fetch.yml)：
 填好 6 个 secret（账号 + 4 个证书 base64），每 6 小时跑一次。
@@ -300,6 +337,7 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 │   ├── netns/                   隔离运行官方客户端
 │   └── mem/aes_scan.c           [备用] AES-NI 密钥扫描内核
 ├── deploy/                   # systemd + Docker
+├── scripts/                  # local.sh / local.ps1（一键本地运行 + 自检 + 汇总）
 ├── workers/apex-fetch/       # Cloudflare Worker（边缘部署，同样支持 v1/v2/both）
 ├── tests/                    # 离线单测（v1 解析 / 合并）
 └── samples/                  # 脱敏样例（含 v1 明文样本）
