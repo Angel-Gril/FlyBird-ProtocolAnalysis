@@ -1,0 +1,9 @@
+# remaining: 105000000000
+# expire_at: 2027-02-11T10:32:15Z
+trojan://00000000-0000-0000-0000-000000000001@trojan-hk.example.com:443?sni=sni-hk-01.example.com&allowInsecure=1#Hong+Kong-01
+trojan://00000000-0000-0000-0000-000000000001@trojan-hk.example.com:443?sni=sni-hk-02.example.com&allowInsecure=1#Hong+Kong-02
+trojan://00000000-0000-0000-0000-000000000001@trojan-jp.example.com:443?sni=sni-jp-01.example.com&allowInsecure=1#Japan-01
+ss://YWVzLTI1Ni1jZmI6PHBhc3N3b3JkPUA2MzExMToxMTAxMQ==#Ss%E5%AF%86%E7%A0%81%E5%8D%95%E7%AB%AF%E5%8F%A3%E6%89%BF%E8%BD%BD
+ss://YWVzLTI1Ni1jZmI6PHBhc3N3b3JkPkBzcy1oazAxLmV4YW1wbGUuY29tOjExMDEx#%5BSS%5D+Hong+Kong-01
+ss://YWVzLTI1Ni1jZmI6PHBhc3N3b3JkPkBzcy1qcDAxLmV4YW1wbGUuY29tOjExMDEx#%5BSS%5D+Japan-01
+ss://YWVzLTI1Ni1jZmI6PHBhc3N3b3JkPkBzcy11czAxLmV4YW1wbGUuY29tOjExMDEx#%5BSS%5D+USA-01
