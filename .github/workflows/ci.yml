@@ -62,6 +62,11 @@ jobs:
           print("APXS roundtrip ok")
           PY
 
+      - name: v1 明文解析与合并单测
+        run: |
+          pip install --quiet pyyaml
+          python tests/test_v1_parse.py
+
       - name: 敏感串扫描（防止误提交凭据）
         run: |
           set +e

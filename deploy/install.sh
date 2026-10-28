@@ -65,6 +65,9 @@ LOGDIR=/var/log/apex-fetch
 
 MIN_NODES=20
 
+# 线路：v2=APXS 主线路（默认）/ v1=遗留明文线路 / both=合并
+SOURCE=v2
+
 # 发布后钩子，例如：
 # HOOK_AFTER_PUBLISH="systemctl reload mihomo"
 HOOK_AFTER_PUBLISH=""

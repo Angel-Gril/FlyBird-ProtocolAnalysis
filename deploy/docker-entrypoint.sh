@@ -18,6 +18,7 @@ set -eu
 : "${RETRY:=300}"
 : "${ONCE:=0}"
 : "${MIN_NODES:=20}"
+: "${SOURCE:=v2}"
 : "${APEX_CONF:=/tmp/apex-fetch.conf}"
 
 log() { printf '%s [apex] %s\n' "$(date '+%F %T')" "$*"; }
@@ -45,6 +46,7 @@ mkdir -p "$(dirname "$OUT")"
     echo "SUB_CERT=\"$CERT_DIR/sub.crt\""
     echo "SUB_KEY=\"$CERT_DIR/sub.key\""
     echo "MIN_NODES=\"$MIN_NODES\""
+    echo "SOURCE=\"$SOURCE\""
 } > "$APEX_CONF"
 chmod 600 "$APEX_CONF"
 
@@ -76,7 +78,7 @@ if [ "$ONCE" = "1" ]; then
     exit $?
 fi
 
-log "常驻模式：间隔 ${INTERVAL}s"
+log "常驻模式：source=${SOURCE} 间隔 ${INTERVAL}s"
 while true; do
     run_once || sleep "$RETRY"
     sleep "$INTERVAL"

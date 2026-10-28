@@ -16,10 +16,19 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | `POST` | `/decode` | body = APXS 原始字节 → 返回 YAML（**不需要账号**，k1 是公开常量） |
-| `GET` | `/sub?token=***` | 返回订阅 YAML；KV 缓存，超龄自动刷新，失败回退旧值 |
+| `GET` | `/sub?token=***&source=v2` | v2 主线路（APXS 解密），KV 缓存 |
+| `GET` | `/sub?token=***&source=v1` | v1 遗留明文线路（trojan/ss） |
+| `GET` | `/sub?token=***&source=both` | 两条线路合并（74 + 148 = 222 节点） |
 | `GET` | `/health` | 缓存状态与元数据 |
 
-`/sub` 也支持 `Authorization: Bearer <token>`。
+`/sub` 也支持 `Authorization: Bearer <token>`；默认线路由 `SOURCE` 变量决定（`v2`）。
+
+| 线路 | 证书绑定 | 说明 |
+|---|---|---|
+| v2 | `SUB_CERT` | APXS，需 WebCrypto AES-CTR 解密 |
+| v1 | `API_CERT` | 明文 URI，无需解密 |
+
+> v1 只需 `API_CERT`；跑 `both` 时两个绑定都要配。
 
 ## 部署
 
