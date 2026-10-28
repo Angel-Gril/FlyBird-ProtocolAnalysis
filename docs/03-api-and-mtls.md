@@ -101,11 +101,36 @@ TTL 72 小时；`jti` 每次登录都变；`access_key` 与账号绑定且**长�
 
 ## 3.6 其他被排除的路径
 
-研究过程中排除了以下"看起来像"的目标，记录以免后来者重复：
+> ⚠️ **本节曾经写错过，已修正（2026-10-28）**
+>
+> 旧结论：「面板 v1 接口 `/api/v1/client/subscribe?token=` → 403 `{code:403102}`，Apex 分支关闭」
+>
+> **错在哪里**：当时测的是 `fbesa.*` 主机、且**没带客户端证书**。
+> 实际上在 `fbaxapi.*` 主机 + **api 证书** + **apex UA** 上，v1 接口**返回明文**。
+> 详见 [09-v1-legacy-endpoint.md](09-v1-legacy-endpoint.md)。
+
+### v1 明文接口（可用）
+
+```
+POST {API}/api/v1/passport/auth/login     api 证书                  -> token
+GET  {API}/api/v1/client/subscribe?token= api 证书 + apex UA        -> 明文 URI（18 KB）
+```
+
+放行矩阵：
+
+| 证书 | UA | 主机 | 结果 |
+|---|---|---|---|
+| api | apex | `fbaxapi.*` | ✅ 200 明文 |
+| subscription | apex | `fbaxapi.*` | ❌ 404 |
+| api | 其他/无 | `fbaxapi.*` | ❌ 404 |
+| 任意 | apex | `fbaxsub.*` | ❌ 404 |
+
+`flag=clash/v2ray/ss/...` 均无效，只输出一种格式。
+
+### 确实被排除的路径
 
 | 目标 | 结论 |
 |---|---|
-| 面板 v1 接口 `/api/v1/client/subscribe?token=` | 403 `{"code":403102}`，Apex 分支关闭 |
 | `/Apex.php` | 404 |
 | 5 个 `fb_apexv2.json` 镜像 | 404 / 500 / 超时 |
 | Malio 主题落地页 | 纯静态，无数据 |

@@ -93,7 +93,7 @@ plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)
 
 ## 🚀 快速开始
 
-三种方式，任选一种：
+五种部署形态，均支持 **v2 / v1 / both** 三种线路：
 
 | 方式 | 适合 | 需要 root |
 |---|---|---|
@@ -103,12 +103,35 @@ plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)
 | **D. Cloudflare Worker** | 多设备共享一个 URL | ❌ |
 | **E. GitHub Actions** | 定期归档 / CI 集成 | ❌ |
 
-> 三种方式都需要 **4 个证书文件**——它们是**本机设备身份**，从你自己已安装的客户端目录导出：
+### 双线路对照（重要）
+
+| | **v2（默认）** | **v1（遗留）** |
+|---|---|---|
+| 主机 / 证书 | `fbaxsub.*` / subscription | `fbaxapi.*` / **api** |
+| 响应 | APXS（AES-256-CTR 解密） | **纯文本 URI**，无需解密 |
+| 节点 | 74 × vless + xtls-rprx-vision | 74 × trojan + 74 × ss |
+| 域名 | `fbapp-*.llguanglisf.com` | `*.6pzftj.com` / `*.6pzfwf2511.com` |
+| 端口 | 10301–10400 | 443 / 11011 |
+| SNI | 固定伪装 `aws.amazon.com` | 每节点独立随机子域 |
+
+**两条线路的节点集完全不重叠**（域名交集为 0），是两批不同的基础设施。
+
+```bash
+python3 src/apex_fetch.py --config cfg --source v2     # 主线路（默认）
+python3 src/apex_fetch.py --config cfg --source v1     # 遗留明文线路
+python3 src/apex_fetch.py --config cfg --source both   # 两份合并
+```
+
+详见 [docs/09-v1-legacy-endpoint.md](docs/09-v1-legacy-endpoint.md)。
+
+> 各方式都需要 **4 个证书文件**——它们是**本机设备身份**，从你自己已安装的客户端目录导出：
 >
 > ```
 > profile5_api_client.{crt,key}.pem          → api.crt / api.key
 > profile5_subscription_client.{crt,key}.pem → sub.crt / sub.key
 > ```
+>
+> `--source v1` 只需要 `api.crt/api.key`（不碰 subscription 证书）。
 
 ### A. Docker（推荐）
 
@@ -240,6 +263,9 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 | 5 | UA 是第二道门禁，与证书缺一不可 |
 | 6 | "明文不落盘"是唯一防线，但**防不住同机 root**（CWE-602） |
 | 7 | 7.2.3 → 7.2.5 期间协议与常量**未变**（见 [CHANGELOG](CHANGELOG.md)） |
+| 8 | 存在**遗留 v1 明文接口**：同一账号用 api 证书即可拿到明文，APXS 被旁路 |
+| 9 | v1/v2 **节点集完全不重叠**，v1 为 trojan/ss，v2 为 vless+vision |
+| 10 | v2 的 `servername` 从**随机串**改为**固定伪装** `aws.amazon.com` |
 
 ## 🗂 目录结构
 
@@ -253,10 +279,12 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 │   ├── 05-approaches.md          四条路线
 │   ├── 06-toolchain.md           Blutter/pclntab/gdb/netns/MITM
 │   ├── 07-hardening-cwe602.md    厂商侧加固建议
-│   └── 08-serverless.md          GitHub Actions / Cloudflare Worker 部署
+│   ├── 08-serverless.md          GitHub Actions / Cloudflare Worker 部署
+│   └── 09-v1-legacy-endpoint.md  遗留明文线路（v1）深度对照
 ├── reports/                  # 20 篇过程报告（已脱敏）
 ├── src/
-│   ├── apex_fetch.py            纯协议抓取器（生产用）
+│   ├── apex_fetch.py            抓取器（--source v2|v1|both）
+│   ├── v1_legacy.py             v1 明文解析 / 渲染 / 合并
 │   ├── apxs_decrypt.py          APXS 解密库/CLI
 │   ├── pclntab.py               Go 符号恢复
 │   ├── extract_nodes.py         [备用] 内存提取节点
@@ -268,8 +296,9 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 │   ├── netns/                   隔离运行官方客户端
 │   └── mem/aes_scan.c           [备用] AES-NI 密钥扫描内核
 ├── deploy/                   # systemd + Docker
-├── workers/apex-fetch/       # Cloudflare Worker（边缘部署）
-└── samples/                  # 脱敏样例
+├── workers/apex-fetch/       # Cloudflare Worker（边缘部署，同样支持 v1/v2/both）
+├── tests/                    # 离线单测（v1 解析 / 合并）
+└── samples/                  # 脱敏样例（含 v1 明文样本）
 ```
 
 ## 🛠 工具链

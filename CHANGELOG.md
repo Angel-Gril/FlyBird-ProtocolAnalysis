@@ -2,6 +2,49 @@
 
 本项目记录对目标客户端协议分析的完整过程。版本号对应**分析里程碑**，非软件版本。
 
+## [1.3.0] - 2026-10-28
+
+### 重要修正：v1 明文接口并未关闭
+
+之前文档写着「v1 接口 → 403 `{code:403102}`，已关闭」——**错了**。
+当时测的是 `fbesa.*` 主机且没带客户端证书。实测结果：
+
+```
+POST {API}/api/v1/passport/auth/login      api 证书                  → token
+GET  {API}/api/v1/client/subscribe?token=  api 证书 + apex UA        → 明文 URI（18 KB）
+```
+
+放行条件：**api 证书 + apex UA + `fbaxapi.*` 主机**，缺一即 404 伪页。
+`flag=clash/v2ray/...` 全部无效（只输出一种格式）。
+
+### 两条线路对照
+
+| | v2（主线路） | v1（遗留） |
+|---|---|---|
+| 证书 / 主机 | subscription / `fbaxsub.*` | **api** / `fbaxapi.*` |
+| 响应 | APXS（需解密） | **明文 URI** |
+| 节点 | 74 × vless + vision | 74 × trojan + 74 × ss |
+| 域名 | `fbapp-*.llguanglisf.com` | `*.6pzftj.com` / `*.6pzfwf2511.com` |
+| 端口 | 10301–10400 | 443 / 11011 |
+| SNI | 固定 `aws.amazon.com` | 每节点随机子域 |
+
+**节点集完全不重叠**（域名交集 0），是两批不同基础设施。v1 用 `aes-256-cfb` + 全局共享密码，
+属上一代协议，更像为老客户端保留的兼容线路。
+
+### 新增
+
+- `src/v1_legacy.py`：v1 明文解析（trojan / ss，兼容 SIP002 与旧式 base64）、Clash 渲染、合并
+- `apex_fetch.py --source v2|v1|both`（也支持配置项 `SOURCE=`）
+- `tests/test_v1_parse.py`：离线单测（解析 / 渲染 / 合并 / 异常输入）
+- `docs/09-v1-legacy-endpoint.md`：双线路深度对照
+- Worker 同步支持 `?source=v2|v1|both`
+- `deploy/` 与 `.env.example` 新增 `SOURCE` 配置
+
+### 修正
+
+- `docs/03-api-and-mtls.md`：更正 v1 接口的旧结论，补充放行矩阵
+- README：新增双线路对照表与三条线路的用法
+
 ## [1.2.0] - 2026-10-27
 
 ### 新增
