@@ -119,7 +119,65 @@ const plain = await crypto.subtle.decrypt(
 
 ---
 
-## 8.5 安全提醒
+## 8.5 证书在两种 Serverless 上怎么放
+
+先明确一件事：**证书只管“取数据”，解密不需要证书**（见 [03 §3.7](03-api-and-mtls.md)）。
+所以 serverless 平台需要解决的只有“如何把 mTLS 客户端证书带在请求上”。
+
+四张证书（`api.crt` / `api.key` / `sub.crt` / `sub.key`）**两种平台都支持**，只是形式不同：
+
+| | Cloudflare Workers | GitHub Actions |
+|---|---|---|
+| 存放位置 | Cloudflare 账户内（mTLS 证书库） | 仓库 / 组织 Secrets |
+| 配置方式 | `wrangler mtls-certificate upload` | `${{ secrets.* }}` 还原成临时文件 |
+| 运行时如何用 | `env.API_CERT.fetch()`（绑定自动带证书） | `ctx.load_cert_chain()`（普通文件） |
+| 是否需自己实现 mTLS | ❌ 平台代劳 | ❌ Python 标准库即可 |
+| 证书是否会写到磁盘 | 否（存在 CF 侧） | 是（`$RUNNER_TEMP`，跑完删） |
+| 支持哪些线路 | v1（API_CERT）/ v2（SUB_CERT）/ both（两个都绑） | 同上，用 `--source` 选择 |
+
+### Cloudflare Worker
+
+```bash
+# 1) 上传两张证书（各得到一值 certificate_id）
+wrangler mtls-certificate upload --cert api.crt --key api.key  --name apex-api
+wrangler mtls-certificate upload --cert sub.crt --key sub.key  --name apex-sub
+
+# 2) 写进 wrangler.toml
+# [[mtls_certificates]]
+# binding = "API_CERT"
+# certificate_id = "<上一步返回的 id>"
+# [[mtls_certificates]]
+# binding = "SUB_CERT"
+# certificate_id = "<上一步返回的 id>"
+
+# 3) 部署
+wrangler deploy
+wrangler secret put APEX_EMAIL
+wrangler secret put APEX_PASSWORD
+wrangler secret put ACCESS_TOKEN
+```
+
+只要 v1，就只绑 `API_CERT`；只要 v2，就只绑 `SUB_CERT`。
+代码里已经按线路做了最小依赖：`--source v1` 不会去碰 `SUB_CERT`。
+
+### GitHub Actions
+
+六个 Secret（账号 2 + 证书 4）：
+
+```
+APEX_EMAIL / APEX_PASSWORD
+APEX_API_CERT_B64 / APEX_API_KEY_B64
+APEX_SUB_CERT_B64 / APEX_SUB_KEY_B64
+```
+
+工作流在 `$RUNNER_TEMP/certs` 里还原成文件，跑完在 `if: always()` 步骤里删除。
+只跑 v1 时把 `SOURCE` 改成 `v1`，并可不填 `APEX_SUB_*`。
+
+> 两种平台都是“**用自己的证书**”：仓库里不内置任何证书，CI 有敏感串扫描防误提交。
+
+---
+
+## 8.6 安全提醒
 
 无论哪种方式，产物都等价于**账号凭据**：
 

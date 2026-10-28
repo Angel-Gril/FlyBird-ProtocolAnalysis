@@ -132,6 +132,10 @@ python3 src/apex_fetch.py --config cfg --source both   # 两份合并
 > ```
 >
 > `--source v1` 只需要 `api.crt/api.key`（不碰 subscription 证书）。
+>
+> **证书只管“拿数据”，解密 k1 不需要任何证书**——详见 [docs/03 §3.7](docs/03-api-and-mtls.md)。
+> 两张证书在 **Cloudflare Workers**（mTLS 绑定）与 **GitHub Actions**（Secrets）上都能直接部署，
+> 见 [docs/08 §8.5](docs/08-serverless.md)。
 
 ### A. Docker（推荐）
 
