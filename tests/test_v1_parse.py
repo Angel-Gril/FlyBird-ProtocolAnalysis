@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """test_v1_parse.py — v1 明文解析与合并的离线单测（无需网络）"""
 import sys
+from subprocess import CompletedProcess
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +73,15 @@ def test_bad_input():
     print("bad input ok")
 
 
+def test_dns_gate_rejects_benchmark_addresses():
+    proxies = [{"name": "dead", "type": "trojan", "server": "legacy.example", "port": 443}]
+    fake = CompletedProcess(["getent"], 0, "198.18.0.19 STREAM legacy.example\n", "")
+    with patch.object(V.subprocess, "run", return_value=fake):
+        filtered, skipped = V.filter_globally_resolvable(proxies)
+    assert filtered == [] and skipped == 1
+    print("dns gate ok")
+
+
 if __name__ == "__main__":
     test_parse()
     try:
@@ -80,4 +91,5 @@ if __name__ == "__main__":
     except ImportError:
         print("skip yaml tests (PyYAML 未安装)")
     test_bad_input()
+    test_dns_gate_rejects_benchmark_addresses()
     print("ALL OK")

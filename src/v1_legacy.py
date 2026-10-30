@@ -30,7 +30,10 @@ from __future__ import annotations
 
 import base64
 import binascii
+import concurrent.futures
+import ipaddress
 import re
+import subprocess
 import urllib.parse as up
 
 # 注释行 → 元数据字段（小写，原样保留）
@@ -71,7 +74,10 @@ def parse_trojan(line: str, name: str) -> dict | None:
         return None
     qs = _qsv(u.query)
     sni = qs.get("sni") or qs.get("peer") or u.hostname
-    insecure = str(qs.get("allowInsecure") or qs.get("insecure") or "0").lower()
+    # The legacy fleet uses self-signed/dynamic SNI certificates. Older
+    # responses carried allowInsecure=1; current responses may omit it while
+    # retaining the same transport behaviour.
+    insecure = str(qs.get("allowInsecure") or qs.get("insecure") or "1").lower()
     return {
         "name": name or f"trojan-{u.hostname}",
         "type": "trojan",
@@ -186,6 +192,52 @@ def prefix_names(proxies: list[dict], prefix: str) -> list[dict]:
         q["name"] = f"{prefix}{p['name']}"
         out.append(q)
     return out
+
+
+def _host_has_global_address(host: str) -> bool:
+    """Return whether a host resolves to at least one globally routable IP.
+
+    The v1 service has been observed returning benchmark/test-net addresses
+    (198.18.0.0/15 and 2001:2::/48) after the legacy fleet is withdrawn. Those
+    entries parse correctly but every client connection times out, so the
+    fetcher must fail closed before publishing them.
+    """
+    try:
+        result = subprocess.run(
+            ["getent", "ahosts", host],
+            capture_output=True, text=True, timeout=2, check=False,
+        )
+        values = []
+        for line in result.stdout.splitlines():
+            value = line.split()[0] if line.split() else ""
+            try:
+                values.append(ipaddress.ip_address(value))
+            except ValueError:
+                pass
+        return any(value.is_global for value in values)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        try:
+            values = [item[4][0] for item in __import__("socket").getaddrinfo(
+                host, None, type=__import__("socket").SOCK_STREAM,
+            )]
+            return any(ipaddress.ip_address(value).is_global for value in values)
+        except (OSError, ValueError):
+            return False
+
+
+def filter_globally_resolvable(proxies: list[dict]) -> tuple[list[dict], int]:
+    """Drop v1 nodes whose server has no globally routable DNS address."""
+    hosts = {str(proxy.get("server", "")) for proxy in proxies if proxy.get("server")}
+    results: dict[str, bool] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=24) as pool:
+        futures = {host: pool.submit(_host_has_global_address, host) for host in hosts}
+        for host, future in futures.items():
+            try:
+                results[host] = future.result()
+            except Exception:
+                results[host] = False
+    filtered = [proxy for proxy in proxies if results.get(str(proxy.get("server", "")), False)]
+    return filtered, len(proxies) - len(filtered)
 
 
 # ---------------------------------------------------------------- 渲染 / 合并

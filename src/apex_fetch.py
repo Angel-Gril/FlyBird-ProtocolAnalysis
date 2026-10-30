@@ -294,11 +294,15 @@ def main() -> int:
         try:
             v1_text, _ = fetch_v1(api, ua, email, password, api_cert, a.insecure)
             v1_proxies, v1_meta, skipped = v1_legacy.parse_plaintext(v1_text)
+            v1_proxies, dns_skipped = v1_legacy.filter_globally_resolvable(v1_proxies)
+            skipped += dns_skipped
             kinds: dict[str, int] = {}
             for p in v1_proxies:
                 kinds[p["type"]] = kinds.get(p["type"], 0) + 1
             log(f"v1 解析：{len(v1_proxies)} 节点 {kinds}，跳过 {skipped}"
                 f"，流量剩余={v1_meta.get('remaining', '?')} 到期={v1_meta.get('expire_at', '?')}")
+            if not v1_proxies:
+                raise RuntimeError("v1 节点没有全球可达的 DNS 地址（遗留线路可能已下线）")
             if a.raw_v1:
                 Path(a.raw_v1).write_text(v1_text, encoding="utf-8")
                 log(f"v1 原文已另存：{a.raw_v1}")
