@@ -43,6 +43,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import apxs_verify  # noqa: E402
 import v1_legacy  # noqa: E402
 
 # ---- APXS v2 格式常量 ----
@@ -165,7 +166,8 @@ def publish(text: str, out: Path):
 
 # ------------------------------------------------------------------ 两条线路
 
-def fetch_v2(api, sub, ua, email, password, api_cert, sub_cert, key_b64, insecure) -> str:
+def fetch_v2(api, sub, ua, email, password, api_cert, sub_cert, key_b64, sign_key_b64,
+             insecure) -> str:
     """v2 主线路：登录 → access-token → APXS → 解密"""
     hdr = {"user-agent": ua, "accept": "application/json",
            "content-type": "application/json; charset=utf-8"}
@@ -203,6 +205,18 @@ def fetch_v2(api, sub, ua, email, password, api_cert, sub_cert, key_b64, insecur
     if st != 200:
         raise RuntimeError(f"v2 下载失败 HTTP {st}（{len(body)}B）—— 检查 subscription 证书与 UA")
     log(f"v2 下载成功：{len(body)}B")
+
+    # 完整性校验（GCM tag + Ed25519 签名）。验不过默认拒绝，避免把被改过的订阅发出去。
+    require = os.environ.get("APXS_VERIFY", "1") not in ("0", "false", "no")
+    info = apxs_verify.verify(body, key_b64, sign_key_b64)
+    if info.get("ok"):
+        log("v2 校验通过：tag=OK 签名=OK")
+    else:
+        msg = (f"tag={'OK' if info.get('tag_ok') else 'FAIL'} "
+               f"签名={'OK' if info.get('sig_ok') else 'FAIL'} {info.get('sig_error') or ''}").strip()
+        if require:
+            raise RuntimeError(f"v2 完整性校验失败（{msg}）—— 可用 APXS_VERIFY=0 跳过（不建议）")
+        log(f"v2 校验失败但已放行：{msg}")
 
     plain, aes_id, sign_id = decrypt_apxs(body, key_b64)
     log(f"v2 解密成功：aesID={aes_id} signID={sign_id} 明文 {len(plain)}B")
@@ -260,6 +274,7 @@ def main() -> int:
     sub = cfg.get("SUB_BASE", DEFAULT_SUB).rstrip("/")
     ua = cfg.get("UA", DEFAULT_UA)
     key_b64 = cfg.get("APXS_KEY", KEY_APXS_DEFAULT)
+    sign_key_b64 = cfg.get("APXS_SIGN_KEY", apxs_verify.DEFAULT_SIGN_KEY)
     min_nodes = int(cfg.get("MIN_NODES", "20"))
     out = Path(a.out or cfg.get("OUT", "/var/lib/apex-fetch/sub.yaml"))
     source = (a.source or cfg.get("SOURCE") or "v2").lower()
@@ -287,7 +302,7 @@ def main() -> int:
     if source in ("v2", "both"):
         try:
             v2_text = fetch_v2(api, sub, ua, email, password, api_cert, sub_cert,
-                               key_b64, a.insecure)
+                               key_b64, sign_key_b64, a.insecure)
         except Exception as e:
             if source == "v2":
                 log(f"失败：{e}")

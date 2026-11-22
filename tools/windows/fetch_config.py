@@ -29,6 +29,10 @@ import urllib.request
 
 UA = "ua.net.fbclient.app.apex/7.3.1"
 
+# 配置签名的内置验签公钥（Dart 侧 ConfigSignature.verifyWithProvenance 引用此常量）
+CONFIG_SIG_KEY_B64 = "xZ//fP0AfP+8yW4OAZOrcKHe7dO78+Gpwu1ewno/fd8="
+CONFIG_SIG_PREFIX = b"apex-config-v1\x00"   # 注意结尾 NUL，漏掉永远验不过
+
 # 只写主机名 + 路径；IP 由 DNS/DoH/--resolve 决定
 MIRRORS = [
     ("apisa-ax.cnossfile.com", "/apos/fb_apexv2.json"),
@@ -187,11 +191,20 @@ def verify_signature(env, pubkeys):
     if len(sig) != 64:
         return "unverified", f"signature 长度 {len(sig)} != 64"
     payload = env.get("payload", "")
+    try:
+        payload_raw = b64d(payload.encode())
+    except Exception:
+        payload_raw = b""
+    fmt = (env.get("format") or "apex-config-v1").encode()
     msgs = {
+        # 7.3.1 实测通过（Aotopsy 反汇编 + 真实信封双确认）：前缀带结尾 NUL，正文是 payload 解码后的字节
+        "nul_prefix+payload_raw": CONFIG_SIG_PREFIX + payload_raw,
+        "nul_prefix+payload_str": CONFIG_SIG_PREFIX + payload.encode(),
+        # 兼容性候选
+        "fmt+payload_raw": fmt + payload_raw,
+        "fmt+payload_str": fmt + payload.encode(),
         "payload_str": payload.encode(),
-        "payload_raw": b64d(payload.encode()),
-        "format+payload": b"apex-config-v1" + payload.encode(),
-        "format|payload": b"apex-config-v1|" + payload.encode(),
+        "payload_raw": payload_raw,
     }
     from cryptography.exceptions import InvalidSignature
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -244,7 +257,7 @@ def main():
             return 2
     os.makedirs(ARGS.out, exist_ok=True)
 
-    pubkeys = []
+    pubkeys = [("builtin", base64.b64decode(CONFIG_SIG_KEY_B64))]
     if ARGS.sign_pubkey:
         for s in ARGS.sign_pubkey:
             try:

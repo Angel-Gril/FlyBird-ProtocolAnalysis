@@ -23,6 +23,37 @@
   GitHub Actions 六个 Secret 与临时文件清理；四张证书两种平台均支持。
 - README 同步补上交叉引用。
 
+## [1.4.2] - 2026-11-23
+
+### 定稿：APXS v2 参数完全对上（tag + 签名都验通）
+
+之前 84 组签名、450 组 tag 全部失败，**不是算法不对，是两处字符串编码漏了**：
+
+| 环节 | 正确参数 |
+|---|---|
+| 签名 | `Ed25519(k2, "apex-sub-sign-v2\0" ‖ body[0:L-64])` |
+| 加密 | `AES-256-GCM(k1, nonce=body[13:25])`，数据段 = `CTR(nonce‖0x00000002)` |
+| tag | `body[L-80:L-64] = GCM(k1, nonce, ct, AAD)` |
+| **AAD** | **`"apex-sub-v2\0" ‖ body[0:25]`（37 B，不是空）** |
+
+Dart 侧前缀是运行时拼接（`"apex-sub-sign-"` + `"v2"` + `"\0"`），那个 `\0` 被算进了消息与 AAD。
+补上后，**两个真实信封**（nonce/tag/sig 全不同）的 tag 与签名逐字节验通。
+
+### 新增
+
+- `src/apxs_verify.py`：完整校验器（GCM tag + Ed25519 签名 + 解密），`--json` 可进 CI
+- `tests/test_apxs_verify.py`：构造→校验→解密，外加篡改 tag / 篡改签名 / 过短信封三种拒绝用例
+- `src/apex_fetch.py`：下载后**强制校验**，验不过拒绝发布（`APXS_VERIFY=0` 可关，不建议）
+- `tools/windows/fetch_config.py`：配置签名改用 **k3** + `"apex-config-v1\0" + payload(解码后)`，
+  默认严格，验不过退出码 3（实测 `verified — builtin`）
+
+### 修正
+
+- `docs/04 §4.8`「它不是 GCM」→ **它就是标准 AES-GCM**，数据段与 CTR 同流；
+- README 协议速览补齐：GCM tag、AAD、签名前缀 NUL；
+- `k3` 的用途由「OSS 模式密钥」更正为 **配置签名公钥**（Dart `ConfigSignature.verifyWithProvenance` 引用）；
+- 新增 §9「验证链补测」，把否定结果与最终参数一并留档。
+
 ## [1.4.1] - 2026-11-23
 
 ### 修正：`fetch_config.py` 达到"可进自动服务"的标准

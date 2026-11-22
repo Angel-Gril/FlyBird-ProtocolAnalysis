@@ -67,6 +67,11 @@ jobs:
           pip install --quiet pyyaml
           python tests/test_v1_parse.py
 
+      - name: APXS 完整校验单测（tag + 签名 + 三种篡改拒绝）
+        run: |
+          pip install --quiet cryptography
+          python tests/test_apxs_verify.py
+
       - name: 敏感串扫描（防止误提交凭据）
         run: |
           set +e

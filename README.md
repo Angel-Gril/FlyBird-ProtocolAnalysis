@@ -70,14 +70,21 @@ FlyBird-ProtocolAnalysis 是一套面向**多平台代理客户端**的协议逆
 [5:9]       4     BE u32 aesKeyID     （实测恒为 1）
 [9:13]      4     BE u32 signKeyID    （实测恒为 1）
 [13:25]     12    nonce
-[25:...]    n     AES-256-CTR 密文
-尾部        16    校验块（不是标准 GCM tag）
-            64    Ed25519 签名
+[25:L-80]   n     AES-256-GCM 密文（数据段 = CTR，计数器 nonce‖0x00000002）
+[L-80:L-64] 16    GCM tag
+[L-64:L]    64    Ed25519 签名
+```
+
+```text
+签名 = Ed25519(k2, "apex-sub-sign-v2\0" ‖ body[0:L-64])     # 前缀带结尾 NUL
+tag  = AES-GCM(k1, nonce, ct, AAD)
+AAD  = "apex-sub-v2\0" ‖ body[0:25]                        # 37 B，不是空
 ```
 
 ```python
 ctr = Counter.new(32, prefix=nonce, initial_value=2, little_endian=False)
-plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)
+plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)   # 解密够用
+# 需要完整性校验时：python src/apxs_verify.py sub.apxs     # tag + 签名 双验
 ```
 
 内置常量（互通性研究所必需，已在 [docs/04](docs/04-apxs-v2-format.md) 完整说明还原过程）：
@@ -86,10 +93,11 @@ plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)
 |---|---|---|
 | `k1` | `fCA3jkvhXpLEpDVuqPstNUS/kXewk7yGL5o8Fbh3uSc=` | AES-256 密钥 |
 | `k2` | `lmzs43izW9GHIOOq+avbwhWh0TG/ldT3kipGkrQ4RiE=` | Ed25519 公钥 |
-| `k3` | `xZ//fP0AfP+8yW4OAZOrcKHe7dO78+Gpwu1ewno/fd8=` | OSS 模式密钥 |
+| `k3` | `xZ//fP0AfP+8yW4OAZOrcKHe7dO78+Gpwu1ewno/fd8=` | **配置签名公钥**（7.3.1 实测；旧文档记为 OSS 密钥） |
 
-**为什么值得记一笔**：按标准 GCM AEAD 去解，2500+ 种 AAD 全部验签失败；
-真相是这个实现**只借用了 GCM 的计数器流**，尾部 16 字节根本不是 tag。
+**为什么值得记一笔**：按标准 GCM AEAD 去解，2500+ 种 AAD 全部验签失败——但**不是因为它不是 GCM**，
+而是当时漏了两处：两个前缀都带**结尾 NUL**，且 **AAD 不是空**（`"apex-sub-v2\0" + body[0:25]`）。
+补上之后，两个真实信封的 tag 与签名**逐字节验通**（`src/apxs_verify.py`）。
 
 ## 🚀 快速开始
 
@@ -316,6 +324,7 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 | 12 | **配置 CDN 也要 mTLS**：`/apos/fb_apexv2.json` 只认 **oss 用途**证书，api/subscription 一律 404 |
 | 13 | 身份集从 3 张扩到 **4 张**：Go 内核新增 `purpose=doh`（`dns.apexDohIdentityState`），Windows 与 Android 一致 |
 | 14 | 7.3.1 内核换装私有传输 `transport/apex`（376 个符号：多路复用 + QUIC + 填充整形 + 遥测），并新增组件完整性清单 |
+| 15 | **APXS v2 参数定稿**：是标准 AES-GCM，AAD = `"apex-sub-v2\0"+body[0:25]`；签名前缀带 `\0`；两个真信封 tag/签名全通 |
 
 ## 🗂 目录结构
 
