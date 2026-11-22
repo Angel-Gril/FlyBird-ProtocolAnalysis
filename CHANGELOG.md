@@ -23,6 +23,32 @@
   GitHub Actions 六个 Secret 与临时文件清理；四张证书两种平台均支持。
 - README 同步补上交叉引用。
 
+## [1.4.5] - 2026-11-23
+
+### 用官方 Windows 内核抓到私有 DoH 的真实请求形态
+
+把 7.3.1 的 `ApexCore.exe` 用解出来的订阅启动（`log-level: debug`），经 external-controller
+触发一次 delay 测试逼它解析节点，日志直接吐出请求：
+
+```
+[DNS] resolve axbtapp-….llguanglisf.com A from https://fbcg02.web.ak005.com:443/api-v2/<token>
+Get "https://fbcg02.web.ak005.com:443/api-v2/<token>?dns=AAABAAABAAAAAAAAEWF4…AAAcAAE"
+  → context deadline exceeded
+```
+
+解 base64url 得标准 DNS 查询：`id=0x0000`、`flags=0x0100`、`qname=节点域名`、
+**`qtype=28（AAAA）`**、`qclass=1`；随后再查 A（与 `ip-version: ipv6-prefer` 一致）。
+
+→ 形态是 **RFC8484 GET**（`?dns=<base64url(wireformat)>`）+ `purpose=doh` 的 mTLS，
+不是 POST、也不是 `?name=&type=`。
+
+### 改进
+
+- `tools/windows/node_dns_probe.py` 改为**同款请求**（GET `?dns=` + AAAA/A 两轮 +
+  `accept: application/dns-message`），HTTP/2 分支同步修正。
+- 报告新增 §8.4.2：日志原文、解码结果、以及"**官方内核在本网络同样 `context deadline exceeded`**"
+  ——把卡点从"我们的工具不行"钉成"到 `103.239.185.80:443` 的 TCP 不通"。
+
 ## [1.4.4] - 2026-11-23
 
 ### 定稿：节点侧私有 DoH 的入口、请求形态与可达性

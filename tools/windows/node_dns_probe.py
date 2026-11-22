@@ -30,6 +30,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import http.client
 import os
 import re
@@ -67,7 +68,11 @@ def first_node(doc: dict) -> str | None:
 
 
 # ---------------------------------------------------------------- DNS 报文
-def dns_query(name: str, qtype: int = 1, qid: int = 0x1234) -> bytes:
+def b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def dns_query(name: str, qtype: int = 1, qid: int = 0) -> bytes:
     q = struct.pack(">HHHHHH", qid, 0x0100, 1, 0, 0, 0)
     for part in name.split("."):
         q += bytes([len(part)]) + part.encode()
@@ -122,20 +127,15 @@ def tls_ctx(cert, insecure: bool):
     return ctx
 
 
-def http1(host, path, node, cert, insecure, method):
+def http1(host, path, node, cert, insecure, qtype=28):
+    """GET ?dns=<base64url(wireformat)> —— 与官方客户端一致。qtype: 28=AAAA, 1=A。"""
     ctx = tls_ctx(cert, insecure)
+    query = dns_query(node, qtype=qtype)
     c = http.client.HTTPSConnection(host, 443, context=ctx, timeout=10)
-    if method == "GET":
-        c.request("GET", f"{path}?name={node}&type=A",
-                  headers={"accept": "application/dns-json",
-                           "user-agent": "ua.net.fbclient.app.apex/7.3.1",
-                           "connection": "close"})
-    else:
-        c.request("POST", path, body=dns_query(node),
-                  headers={"content-type": "application/dns-message",
-                           "accept": "application/dns-message",
-                           "user-agent": "ua.net.fbclient.app.apex/7.3.1",
-                           "connection": "close"})
+    c.request("GET", f"{path}?dns={b64url(query)}",
+              headers={"accept": "application/dns-message",
+                       "user-agent": "ua.net.fbclient.app.apex/7.3.1",
+                       "connection": "close"})
     r = c.getresponse()
     body = r.read(4000)
     c.close()
@@ -160,12 +160,11 @@ def http2(host, path, node, cert, insecure):
     conn = h2.connection.H2Connection(config=h2.config.H2Configuration(client_side=True))
     conn.initiate_connection()
     s.sendall(conn.data_to_send())
-    conn.send_headers(1, [(":method", "POST"), (":scheme", "https"), (":authority", host),
-                          (":path", path), ("content-type", "application/dns-message"),
+    conn.send_headers(1, [(":method", "GET"), (":scheme", "https"), (":authority", host),
+                          (":path", f"{path}?dns={b64url(dns_query(node, qtype=28))}"),
                           ("accept", "application/dns-message"),
                           ("user-agent", "ua.net.fbclient.app.apex/7.3.1")],
-                      end_stream=False)
-    conn.send_data(1, dns_query(node), end_stream=True)
+                      end_stream=True)
     s.sendall(conn.data_to_send())
     status, body, done = None, b"", False
     for _ in range(20):
@@ -236,18 +235,18 @@ def main() -> int:
             elif body:
                 print("        body:", body[:160])
             continue
-        for method in ("GET", "POST"):
+        for qtype, label in ((28, "AAAA"), (1, "A")):
             try:
-                st, body, _ = http1(host, path, node, cert, a.insecure, method)
+                st, body, _ = http1(host, path, node, cert, a.insecure, qtype=qtype)
             except Exception as e:  # noqa: BLE001
-                print(f"  [{method}] {host} -> {type(e).__name__}: {str(e)[:80]}")
+                print(f"  [{label}] {host} -> {type(e).__name__}: {str(e)[:80]}")
                 continue
-            parsed = parse_dns(body) if method == "POST" and st == 200 else None
-            print(f"  [{method}] {host} -> {st} {len(body)}B")
+            parsed = parse_dns(body) if st == 200 else None
+            print(f"  [{label}] {host} -> {st} {len(body)}B")
             if parsed:
                 print("        解析:", parsed)
                 ok = True
-            elif st == 200:
+            elif body:
                 print("        body:", body[:160])
 
     print("\n结果:", "解析成功" if ok else "未成功（本网络对端点 TCP 不通，或令牌已过期）")
