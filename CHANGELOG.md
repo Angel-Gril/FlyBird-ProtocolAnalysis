@@ -23,6 +23,41 @@
   GitHub Actions 六个 Secret 与临时文件清理；四张证书两种平台均支持。
 - README 同步补上交叉引用。
 
+## [1.4.4] - 2026-11-23
+
+### 定稿：节点侧私有 DoH 的入口、请求形态与可达性
+
+**入口在配置里，不在二进制里。** 7.3.1 内核没有 `/api-v2/` 字面量；
+`dns.apexDohTLS` 只加载 `purpose=doh` 证书，`dns.(*dnsOverHTTPS).createClient.apexDohRedirect`
+把普通 DoH 客户端替换成带 mTLS 的实现，报文类型由字面量 `application/dns-message` 决定
+→ **URL 完全由订阅的 `dns.proxy-server-nameserver` 下发，不存在隐藏端点**。
+
+解析链（DoH 复核）：
+
+```
+fbcg02.web.ak005.com            CNAME  doh-aws.llguangli25n.com.
+doh-aws.llguangli25n.com        CNAME  dsapi-sdcm02.llguanglisf.com.
+dsapi-sdcm02.llguanglisf.com    A      103.239.185.80     （AAAA 为空）
+```
+
+CNAME 里直接写着 `doh-aws` —— DoH 专用域，不是随机子域。
+
+**可达性穷举（本环境全部失败）**：
+
+| 尝试 | 结果 |
+|---|---|
+| `103.239.185.80` TCP 80/443/8443/8080 | 全部超时 |
+| HTTP/1.1 GET/POST × doh/sub/api/无证书 | 一次 404 伪装页，其余 TCP 超时 |
+| **HTTP/2 + ALPN h2 + mTLS + POST** | **TCP 阶段即超时** |
+| Cloudflare/Google/Quad9/NextDNS/AdGuard 查同一域名 | 全部不可达（拿不到非 CN 视角） |
+
+→ 请求形态已明确并实现，**缺的只是网络可达性**；本版仍**不提供**"自动解决节点超时"的补丁。
+
+### 改进
+
+- `tools/windows/node_dns_probe.py` 增加 `--http2`：用 `h2` + ALPN + mTLS 发 RFC8484 POST，
+  与 mihomo 的真实形态一致；TCP 不通时会明确报"未到 TLS 层"，避免误判为协议问题。
+
 ## [1.4.3] - 2026-11-23
 
 ### 更正（依据样本复核，两条都成立）
