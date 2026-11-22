@@ -23,6 +23,46 @@
   GitHub Actions 六个 Secret 与临时文件清理；四张证书两种平台均支持。
 - README 同步补上交叉引用。
 
+## [1.4.3] - 2026-11-23
+
+### 更正（依据样本复核，两条都成立）
+
+| 原表述 | 更正 |
+|---|---|
+| 「`purpose=doh` 是 7.3.x 新增」 | **7.2.4 就已存在**：`usr/bin/mihomo`（43,911,330 B）里有 `purpose=doh` 证书包（`@0x019A3BBF`）与 `apexDohMTLS`/`apexDohIdentityState`/`ExternalDohServer`。7.3.1 新增的是**引导层**（`apexBootstrapClient`/`apexBootstrapResult`，7.2.4 为 0） |
+| 「7.3.1 的 OpenWrt 包还没拿到」 | **官方已提供**：`update.latest.openwrt = https://dl.pbbapi.rundingtai.com/apps/fb/fbapp-openwrt-speed.zip`（187,204,025 B，SHA-256 `C20BBB49…`，6 个 7.3.1 包）。已解包复核 |
+
+### 新增：7.3.1 路由器端实测（§7.6）
+
+`fnapp-openwrt-speed-24.10-7.3.1-…-armv7.ipk` → `usr/bin/apex_ua_net_fbcl_bfd4eda921e8`（56,883,770 B）：
+
+| 符号 | 7.2.4 | 7.3.1 |
+|---|---|---|
+| `apexopenwrt` / `OpenAPXS` / `key32` / `RouterConfig` | 272 / 1 / 1 / 2 | **306 / 2 / 1 / 2** |
+| `transport/apex` / `outbound.Apex` | 0 / 0 | **482 / 12** |
+| `apexBootstrapClient` / `apexBootstrapResult` | 0 / 0 | **9 / 4** |
+| `apexDohMTLS` / `apexDohIdentityState` | 1 / 4 | 1 / 4 |
+
+→ **路由器端 APXS 解密器在 7.3.1 保留**，且自带引导层，是目前最好的离线 oracle。
+
+### 新增：配置签名策略回归测试
+
+`tests/test_config_sig.py`（已进 CI）覆盖审查里指出的绕过点：
+
+```
+正确签名 -> verified     全零签名 -> 拒绝        篡改 payload -> 拒绝
+非 64 字节 -> 拒绝       旧格式(无签名) -> absent  错公钥 -> 拒绝
+```
+
+> 说明：审查提到的「全零签名仍被接受」发生在 `5c1d832`（首版无签名校验）。
+> `3bd120d2` 起改为默认拒绝（退出码 3），`62577e82` 起用 k3 真验签，实测 `verified — builtin`。
+
+### 新增：私有 DoH 探测工具（非生产）
+
+`tools/windows/node_dns_probe.py`：从订阅 `dns.proxy-server-nameserver` 取私有 DoH，
+按 GET(json) / POST(wireformat) × 证书组合探测解析。**明确标注为探测工具**——
+截至本版，本网络对该端点不可达，仓库不提供"自动解决节点超时"的实现。
+
 ## [1.4.2] - 2026-11-23
 
 ### 定稿：APXS v2 参数完全对上（tag + 签名都验通）

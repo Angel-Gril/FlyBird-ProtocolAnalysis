@@ -72,6 +72,11 @@ jobs:
           pip install --quiet cryptography
           python tests/test_apxs_verify.py
 
+      - name: 配置签名策略单测（全零签名 / 篡改 payload / 错公钥 必须拒绝）
+        run: |
+          pip install --quiet cryptography
+          python tests/test_config_sig.py
+
       - name: 敏感串扫描（防止误提交凭据）
         run: |
           set +e
