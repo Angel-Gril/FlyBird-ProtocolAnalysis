@@ -16,6 +16,10 @@
       -> 纯文本 URI（trojan / ss），无需任何解密
       产物：由 URI 渲染的 Clash 配置
 
+  ⚠️ 2026-11-23 实测（客户端 7.3.1）：本部署的 v1 订阅口已下线——
+     登录仍 200，但 subscribe 返回 403 {"message":"token is error"}，
+     subscribe_url 指向占位域名。v1 代码保留作历史形态，抓取请用 --source v2。
+
 用法：
     apex_fetch.py --config /etc/apex-fetch/config --out sub.yaml
     apex_fetch.py --config ... --source v1|v2|both
@@ -47,7 +51,7 @@ APXS_VERSION = 0x02
 TRAILER = 16 + 64          # 尾部校验 + 签名（解密不需要）
 KEY_APXS_DEFAULT = "fCA3jkvhXpLEpDVuqPstNUS/kXewk7yGL5o8Fbh3uSc="
 
-DEFAULT_UA = "ua.net.fbclient.app.apex/v7.2.5"
+DEFAULT_UA = "ua.net.fbclient.app.apex/v7.3.1"
 DEFAULT_API = "https://fbaxapi.apiv2.a047.com"
 DEFAULT_SUB = "https://fbaxsub.web.ak005.com"
 

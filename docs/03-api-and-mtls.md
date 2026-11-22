@@ -192,3 +192,64 @@ curl --cert api.crt --key api.key \
 # 去掉 User-Agent    -> 404
 # 两者都去掉         -> 404
 ```
+
+---
+
+## 3.9 7.3.1 补充：配置 CDN 的 oss 门禁（2026-11-23）
+
+7.3.1 把远程配置入口从 `/apos/fb_apex.json` 换成 **`/apos/fb_apexv2.json`**，
+同时把**第三张证书（oss）**用了起来 —— 这是之前一直没解释清楚的一块。
+
+### 3.9.1 放行矩阵
+
+| 证书 \ `apisa-ax.cnossfile.com/apos/fb_apexv2.json` | 结果 |
+|---|---|
+| 无 | 404（153 B 伪装页） |
+| api | 404 |
+| subscription | 404 |
+| **oss** | **200 / `application/json`** |
+
+> 旧记录写的「oss 主机 500，配置拿不到」是**缺证书**导致的误判，与主机可用性无关。
+
+### 3.9.2 层序与键
+
+```
+HTTP body (base64 文本)
+   │ base64decode
+   ▼
+binary
+   │ repeating-XOR（每构建注入的 XOR_KEY，长度 32）
+   ▼
+{"format":"apex-config-v1","payload":"<b64>","signature":"<b64 64B>"}
+   │ base64decode(payload)
+   ▼
+配置 JSON（domains / subscribe_domain / subscribe_path / features / update）
+```
+
+未知构建时可用已知明文反推：
+
+```bash
+python3 tools/windows/fetch_config.py --certs ./certs --out ./cfg
+# 已知明文 = '{"format":"apex-config-v1","payload":"eyJ'
+# 键长 < 26 时可直接反推；32 字节级键需要更长的已知明文（脚本已内置）
+```
+
+### 3.9.3 两个新发现
+
+1. **信封新增 `signature`**（64 B base64，Ed25519 形态）。用 k1/k2/k3 与 13 种消息构造、
+   29 个候选公钥均未验通 → 说明它用的是**独立按构建注入的验签公钥**，
+   7.2.3 时代的「配置零签名」（F3）已被修掉一半，剩下「是否强制验签」需运行时确认。
+2. **DNS 分流**：这些 CDN 域名在国内递归上会指到 `103.236.73.19`（TCP 直接 RST）。
+   用 DoH 复核可拿到真实边缘（例如 `52.69.163.183` / `222.186.134.196`），
+   再以正确 SNI 直连才通 —— 直接 `curl` 失败不代表接口不存在。
+
+### 3.9.4 与订阅链的关系
+
+| 目标 | 需要的证书 | 备注 |
+|---|---|---|
+| 拉配置 `fb_apexv2.json` | **oss** | 7.3.1 新增要求 |
+| 登录 / access-token | api | 不变 |
+| 下载订阅（APXS） | subscription | 不变 |
+| 只解密已有 APXS | 0 | 不变 |
+
+---

@@ -1,5 +1,12 @@
 # 09 · 遗留明文线路（v1）与双线路对照
 
+> **2026-11-23 状态更新（7.3.1 实测）**：本部署的 v1 **订阅口已下线**。
+> `POST /api/v1/passport/auth/login` 仍返回 200，`GET /api/v1/user/getSubscribe` 也是 200，
+> 但 `subscribe_url` 指向占位域名 `api.example.com`，用返回的 token 打
+> `/api/v1/client/subscribe?token=` 得到 **403 `{"message":"token is error"}`**（两个 API 主机一致）。
+> 因此 v1 只能当作历史形态阅读；实际抓取请只用 `--source v2`。
+> 详见 [reports/11 §8.5](reports/11-7.3.1-更新差异与协议回归.md)。
+
 > 这是本项目最重要的一次修正：我们最初认为 v1 接口已关闭（403 `{code:403102}`），
 > 实际上**它在另一组主机上、用另一张证书、配同一个 UA 是通的**，并且**返回明文**。
 >

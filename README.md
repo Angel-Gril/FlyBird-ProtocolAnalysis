@@ -12,7 +12,7 @@
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
     <a href="NOTICE-LEGAL.md"><img alt="Usage" src="https://img.shields.io/badge/usage-authorized%20research-orange?style=flat-square"></a>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android%20%7C%20OpenWrt-334155?style=flat-square">
-    <img alt="Client" src="https://img.shields.io/badge/client-7.2.3%20~%207.2.5-0b7285?style=flat-square">
+    <img alt="Client" src="https://img.shields.io/badge/client-7.2.3%20~%207.3.1-0b7285?style=flat-square">
     <img alt="Runtime" src="https://img.shields.io/badge/runtime-2026.10.27--r1-6b7280?style=flat-square">
     <a href="https://github.com/Angel-Gril/FlyBird-ProtocolAnalysis/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Angel-Gril/FlyBird-ProtocolAnalysis/ci.yml?style=flat-square&label=ci"></a>
   </p>
@@ -110,12 +110,17 @@ plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)
 |---|---|---|
 | 主机 / 证书 | `fbaxsub.*` / subscription | `fbaxapi.*` / **api** |
 | 响应 | APXS（AES-256-CTR 解密） | **纯文本 URI**，无需解密 |
-| 节点 | 74 × vless + xtls-rprx-vision | 74 × trojan + 74 × ss |
-| 域名 | `fbapp-*.llguanglisf.com` | `*.6pzftj.com` / `*.6pzfwf2511.com` |
-| 端口 | 10301–10400 | 443 / 11011 |
-| SNI | 固定伪装 `aws.amazon.com` | 每节点独立随机子域 |
+| 节点 | **74 × anytls**（7.3.1 起；7.2.x 为 vless+vision） | 74 × trojan + 74 × ss |
+| 域名 | `axbtapp-*.llguanglisf.com`（单域名多端口） | `*.6pzftj.com` / `*.6pzfwf2511.com` |
+| 端口 | **14301–14400**（7.2.x 为 10301–10400） | 443 / 11011 |
+| SNI | 每节点随机 `*.footcampbins.com`（7.2.x 为固定 `aws.amazon.com`） | 每节点独立随机子域 |
 
 **两条线路的节点集完全不重叠**（域名交集为 0），是两批不同的基础设施。
+
+> ⚠️ **2026-11-23 实测**：在 7.3.1 的部署上，v1 路由仍在（登录 200），但
+> `/api/v1/client/subscribe?token=` 返回 `403 {"message":"token is error"}`，
+> 且 `subscribe_url` 指向占位域名 `api.example.com` —— **v1 明文线路已下线**，
+> `--source v1` 应按不可用处理。详见 [reports/11](reports/11-7.3.1-更新差异与协议回归.md) §8.5。
 
 ```bash
 python3 src/apex_fetch.py --config cfg --source v2     # 主线路（默认）
@@ -306,7 +311,11 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 | 7 | 7.2.3 → 7.2.5 期间协议与常量**未变**（见 [CHANGELOG](CHANGELOG.md)） |
 | 8 | 存在**遗留 v1 明文接口**：同一账号用 api 证书即可拿到明文，APXS 被旁路 |
 | 9 | v1/v2 **节点集完全不重叠**，v1 为 trojan/ss，v2 为 vless+vision |
-| 10 | v2 的 `servername` 从**随机串**改为**固定伪装** `aws.amazon.com` |
+| 10 | v2 的 `servername` 从**随机串**改为**固定伪装** `aws.amazon.com`；**7.3.1 又改回每节点随机 `*.footcampbins.com`** |
+| 11 | **7.3.1 节点类型换代**：`vless+vision` → **`anytls`**（单域名 + 14301–14400 + `client-fingerprint: chrome`），规则数 14 → 111 |
+| 12 | **配置 CDN 也要 mTLS**：`/apos/fb_apexv2.json` 只认 **oss 用途**证书，api/subscription 一律 404 |
+| 13 | 身份集从 3 张扩到 **4 张**：Go 内核新增 `purpose=doh`（`dns.apexDohIdentityState`），Windows 与 Android 一致 |
+| 14 | 7.3.1 内核换装私有传输 `transport/apex`（376 个符号：多路复用 + QUIC + 填充整形 + 遥测），并新增组件完整性清单 |
 
 ## 🗂 目录结构
 
@@ -335,6 +344,10 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 │   ├── mitm_observe.py          TLS 终止观察代理
 │   ├── gdb/                     gdb 断点抓参与 dump 明文
 │   ├── netns/                   隔离运行官方客户端
+│   ├── windows/                 7.3.1 回归三件套
+│   │   ├── unpack_installer.ps1     Inno Setup 静默解包 + 清单 + 还原
+│   │   ├── verify_build.py          常量/证书/信封/组件清单一次性核对
+│   │   └── fetch_config.py          oss 证书拉配置 + 反推 XOR 键
 │   └── mem/aes_scan.c           [备用] AES-NI 密钥扫描内核
 ├── deploy/                   # systemd + Docker
 ├── scripts/                  # local.sh / local.ps1（一键本地运行 + 自检 + 汇总）
@@ -380,6 +393,24 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 更新内容全部是客户端侧：虚拟网卡安装优化、校园网模式、节点选择 UI、代理类型说明。
 服务端与协议未变——实测 `aesID=1`、k1 仍可解密、74 节点结构一致；
 新版 APK 里 `k1/k2/k3` 与 `apex-sub-sign-v2` 均未变化。**不需要任何调整。**
+</details>
+
+<details>
+<summary><b>7.3.1 更新了什么？会影响吗？</b></summary>
+
+**协议没变，节点面变了。** 逐项回归（详见 [reports/11](reports/11-7.3.1-更新差异与协议回归.md)）：
+
+| 项 | 结论 |
+|---|---|
+| `k1/k2/k3`、APXS 信封 | **未变**，线上 35,173 B → 明文 35,068 B，`aesID=1 signID=1` |
+| 三张 mTLS 身份 | 未轮换（RSA-3072，指纹与 7.2.3 一致） |
+| 节点 | **vless+vision → anytls**（74 个，单域名 + 14301–14400 + 随机 SNI） |
+| 规则 | 14 → 111 |
+| 配置 | 入口改 `fb_apexv2.json`，**要 oss 证书**，信封新增 `signature` |
+| 内核 | +14 MB，mihomo v1.19.33，私有 `transport/apex`，组件完整性清单 |
+
+抓取脚本无需改；只是下游若写死 `vless` 字段（`uuid`/`flow`/`network`/`servername`），
+要按 `anytls`（`password` + `sni` + `client-fingerprint`）重新渲染。
 </details>
 
 <details>

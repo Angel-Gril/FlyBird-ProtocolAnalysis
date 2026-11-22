@@ -23,6 +23,52 @@
   GitHub Actions 六个 Secret 与临时文件清理；四张证书两种平台均支持。
 - README 同步补上交叉引用。
 
+## [1.4.0] - 2026-11-23
+
+### 客户端 7.3.1：协议未变，节点面换代
+
+Windows 安装包（`fbapp-speed.exe`，65,009,528 B）解包后为 **7.3.1**（`Apex.exe 7.3.1+1794563169`），
+Android APK 同步 7.3.1（versionCode `1794563093`，targetSdk 36）。逐项回归：
+
+| 检查项 | 结果 |
+|---|---|
+| `k1 / k2 / k3` | **未变**（偏移随快照重排） |
+| APXS v2 信封 | **未变**：线上 35,173 B → 明文 35,068 B，`aesID=1 signID=1` |
+| mTLS 身份（api/subscription/oss） | **未轮换**，指纹与 7.2.3 一致（RSA **3072**） |
+| 节点类型 | **vless+vision → anytls**（74 个，单域名 + 14301–14400 + 每节点随机 SNI） |
+| 规则数 | 14 → **111** |
+| 配置入口 | `/apos/fb_apex.json` → **`/apos/fb_apexv2.json`** |
+| 配置门禁 | **必须 oss 用途证书**（api/subscription 一律 404） |
+| 配置信封 | 新增 **`signature`**（64 B）字段 |
+| 内核 | 61 MB / mihomo **v1.19.33**，新增私有 `transport/apex`（376 符号） |
+| 组件完整性 | 新增 `apex-windows-components.json`（99 文件 sha256 + core/wintun 哈希） |
+| 身份集 | 3 → **4**（Go 内核新增 `purpose=doh`） |
+
+### 新增
+
+- `tools/windows/unpack_installer.ps1`：Inno Setup 静默解包 → 文件清单 → 一键还原
+- `tools/windows/verify_build.py`：常量 / 标记 / mTLS 证书 / APXS 往返 / 组件清单的机器可读回归
+- `tools/windows/fetch_config.py`：oss 证书拉 `fb_apexv2.json`，用已知明文反推 XOR 键并解码
+- `reports/11-7.3.1-更新差异与协议回归.md`：完整差异、门禁矩阵与线上实测
+- CI 语法检查覆盖 `tools/windows/*.py`
+
+### 修正
+
+- **配置 CDN 需要 oss 证书**：旧记录「oss 主机 500，拿不到配置」实为缺证书
+  （api/sub 证书一律 404，oss 证书才 200）
+- **证书位长**：基线报告写 RSA-2048，实测三张均为 **RSA-3072**
+- **v1 明文线路**：7.3.1 部署上登录 200，但订阅口 `403 token is error`、
+  `subscribe_url` 指向占位域名 → 已下线（见 `docs/09`）
+- `DEFAULT_UA` 升至 `ua.net.fbclient.app.apex/7.3.1`
+
+### 实测
+
+```
+v2 登录 200 → access-token 200(1,690B) → download 200(35,173B, APXS)
+解密  aesID=1 signID=1  明文 35,068B → 74 anytls / 3 分组 / 111 规则
+官方内核  ApexCore.exe -t -f sub.yaml → test is successful (583ms)
+```
+
 ## [1.3.0] - 2026-10-28
 
 ### 重要修正：v1 明文接口并未关闭

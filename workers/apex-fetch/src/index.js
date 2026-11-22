@@ -20,7 +20,7 @@
 
 const K1_B64 = "fCA3jkvhXpLEpDVuqPstNUS/kXewk7yGL5o8Fbh3uSc=";
 const TRAILER = 16 + 64;
-const UA = "ua.net.fbclient.app.apex/7.2.5";
+const UA = "ua.net.fbclient.app.apex/7.3.1";
 const DEFAULT_API = "https://fbaxapi.apiv2.a047.com";
 const DEFAULT_SUB = "https://fbaxsub.web.ak005.com";
 

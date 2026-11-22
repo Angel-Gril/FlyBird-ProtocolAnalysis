@@ -16,7 +16,7 @@ jobs:
 
       - name: 语法检查
         run: |
-          python -m py_compile src/*.py tools/*.py
+          python -m py_compile src/*.py tools/*.py tools/windows/*.py
 
       - name: 单元自检（CTR 往返）
         run: |
