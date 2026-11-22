@@ -347,7 +347,7 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 │   ├── windows/                 7.3.1 回归三件套
 │   │   ├── unpack_installer.ps1     Inno Setup 静默解包 + 清单 + 还原
 │   │   ├── verify_build.py          常量/证书/信封/组件清单一次性核对
-│   │   └── fetch_config.py          oss 证书拉配置 + 反推 XOR 键
+│   │   └── fetch_config.py          oss 证书拉配置（严格 TLS + 签名策略 + DNS/DoH 兜底）
 │   └── mem/aes_scan.c           [备用] AES-NI 密钥扫描内核
 ├── deploy/                   # systemd + Docker
 ├── scripts/                  # local.sh / local.ps1（一键本地运行 + 自检 + 汇总）

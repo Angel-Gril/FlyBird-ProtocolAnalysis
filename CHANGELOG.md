@@ -23,6 +23,47 @@
   GitHub Actions 六个 Secret 与临时文件清理；四张证书两种平台均支持。
 - README 同步补上交叉引用。
 
+## [1.4.1] - 2026-11-23
+
+### 修正：`fetch_config.py` 达到"可进自动服务"的标准
+
+上一版把可用路径换坏了，也把不安全默认留在了脚本里。本次按三条硬约束重写：
+
+| 约束 | 上一版 | 现在 |
+|---|---|---|
+| TLS | `check_hostname=False` + `CERT_NONE`（全局关校验） | **默认系统根 + 主机名校验**；仅 `--allow-expired`（只容忍错误码 10）或 `--insecure` 可继续，且记录叶子证书 SHA-256 |
+| 配置签名 | 完全没验 | 出现 `signature` 时**默认拒绝产出**（退出码 3）；`--sign-pubkey` 可注入公钥，`--allow-unverified-signature` 才显式放行 |
+| 解析 | 写死当时 DoH 解析出的 IP | **只写主机名**；系统 DNS → DoH 兜底；固定落点走 `--resolve HOST:IP`，代码里无地址常量 |
+
+### 修正：配置镜像的 TLS 事实
+
+| 镜像 | 叶子证书 | 有效期 | 严格校验 |
+|---|---|---|---|
+| `apisa-ax.cnossfile.com` | `*.cnossfile.com`（LE E7） | 2026-03-31 → **2026-06-29（已过期）** | ✗ code=10 |
+| `tcdn-ax.getxlx.com` | `*.getxlx.com`（LE YR2） | 2026-10-27 → 2027-01-25 | ✓ 200 / 7244 B |
+
+**并更正上一版的说法**：「系统 DNS 被污染、要用 DoH 换 IP」不成立——`tcdn-ax` 走系统 DNS
+直接 200，用 DoH 换到另一个边缘反而 404。已从报告正文删除该结论。
+
+### 新增：私有 DoH 入口定位
+
+订阅的 `dns.proxy-server-nameserver` 里就是节点解析入口：
+
+```yaml
+- "https://fbcg02.web.ak005.com/api-v2/<per-fetch-token>"   # 每次 download 轮换
+```
+
+与内核 `dns.apexBootstrapClient` + `purpose=doh` 身份对应。本网络实测：一次 404 伪装页、
+多次 TCP 超时（`103.239.185.80:443`），**入口已知但不可达**，只能作为已知项记录。
+
+### 新增：验证链深度补测（§9）
+
+- `aotopsy signal` 反汇编 39,215 个 Dart 函数（BLR 注释 97.4%），拿到 `BoardDecryptHelper.open`
+  的完整调用链：`isEnvelope → getUint32 ×2 → base64Decode ×2 → Ed25519.verify → AesGcm.decrypt`；
+- 用真实信封（35,173 B）证伪：签名 84 组、GCM tag 450 组、16 B 摘要 14 组**全部不匹配**，
+  而 CTR 解密 + 官方内核校验通过；
+- `docs/04 §4.8`「它不是 GCM」已加复核横幅，结论降级为"代码路径存在、参数待运行时确认"。
+
 ## [1.4.0] - 2026-11-23
 
 ### 客户端 7.3.1：协议未变，节点面换代
