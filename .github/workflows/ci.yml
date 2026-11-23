@@ -77,6 +77,11 @@ jobs:
           pip install --quiet cryptography
           python tests/test_config_sig.py
 
+      - name: 协议一致性向量（docs/11：tag / 签名 / 配置验签）
+        run: |
+          pip install --quiet cryptography
+          python tests/test_protocol_vectors.py
+
       - name: 敏感串扫描（防止误提交凭据）
         run: |
           set +e

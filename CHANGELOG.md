@@ -23,6 +23,26 @@
   GitHub Actions 六个 Secret 与临时文件清理；四张证书两种平台均支持。
 - README 同步补上交叉引用。
 
+## [1.5.0] - 2026-11-23
+
+### 新增：面板/订阅协议的**规范性规格**与参考实现（层 ①）
+
+把散在 README / docs/03 / docs/04 / reports 里的结论收敛成一份可按字节实现的规格：
+
+- `docs/11-protocol-spec.md`：门禁矩阵、账号链路、APXS v2 布局与 AAD/签名、
+  `apex-config-v1` 层序与验签、错误语义、**版本回归清单**、集成自查表与 CWE-602 边界说明；
+- `src/apex_protocol.py`：单文件参考实现（`Transport` 可注入），
+  覆盖 `login / access_token / download / fetch` 与 `parse / verify / decrypt / build`、
+  `decode_config / verify_config`；默认验签，失败即抛；
+- `tests/vectors.json` + `tests/test_protocol_vectors.py`：固定测试私钥（种子 `00..1f`）
+  产生的**确定性向量**（keystream 首块、AAD、tag、签名、配置解码与验签），已进 CI。
+
+### 说明
+
+- 规格只覆盖**面板与订阅链路**；节点侧（anytls、私有 DoH、`transport/apex`）明确列为范围外，
+  在 `reports/11 §8` 单独记录；
+- 正文标注了每一条的验证状态："实测验通 / 推断 / 待运行时"。
+
 ## [1.4.5] - 2026-11-23
 
 ### 用官方 Windows 内核抓到私有 DoH 的真实请求形态

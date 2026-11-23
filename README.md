@@ -87,6 +87,10 @@ plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)   # 解密够用
 # 需要完整性校验时：python src/apxs_verify.py sub.apxs     # tag + 签名 双验
 ```
 
+**规范哪里看**：字节级规格、门禁矩阵、错误语义、版本回归清单 → [docs/11-protocol-spec.md](docs/11-protocol-spec.md)；
+可直接调用的实现 → `src/apex_protocol.py`；一致性向量 → `tests/vectors.json`
+（`python tests/test_protocol_vectors.py`，CI 已接入）。
+
 内置常量（互通性研究所必需，已在 [docs/04](docs/04-apxs-v2-format.md) 完整说明还原过程）：
 
 | 名称 | 值 | 用途 |
@@ -339,10 +343,13 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 │   ├── 06-toolchain.md           Blutter/pclntab/gdb/netns/MITM
 │   ├── 07-hardening-cwe602.md    厂商侧加固建议
 │   ├── 08-serverless.md          GitHub Actions / Cloudflare Worker 部署
-│   └── 09-v1-legacy-endpoint.md  遗留明文线路（v1）深度对照
+│   ├── 09-v1-legacy-endpoint.md  遗留明文线路（v1）深度对照
+│   └── 11-protocol-spec.md       **面板/订阅协议规格（规范性，配套向量）**
 ├── reports/                  # 20 篇过程报告（已脱敏）
 ├── src/
 │   ├── apex_fetch.py            抓取器（--source v2|v1|both）
+│   ├── apex_protocol.py         **参考实现库（登录/下载/APXS/配置，可注入传输）**
+│   ├── apxs_verify.py           APXS tag + 签名校验器
 │   ├── v1_legacy.py             v1 明文解析 / 渲染 / 合并
 │   ├── apxs_decrypt.py          APXS 解密库/CLI
 │   ├── pclntab.py               Go 符号恢复
@@ -362,6 +369,7 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 ├── scripts/                  # local.sh / local.ps1（一键本地运行 + 自检 + 汇总）
 ├── workers/apex-fetch/       # Cloudflare Worker（边缘部署，同样支持 v1/v2/both）
 ├── tests/                    # 离线单测（v1 解析 / 合并）
+├── tests/                    # 离线单测（APXS 向量 / 配置签名 / v1 解析）
 └── samples/                  # 脱敏样例（含 v1 明文样本）
 ```
 
