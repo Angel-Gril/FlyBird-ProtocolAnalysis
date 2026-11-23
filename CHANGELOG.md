@@ -23,6 +23,33 @@
   GitHub Actions 六个 Secret 与临时文件清理；四张证书两种平台均支持。
 - README 同步补上交叉引用。
 
+## [1.5.2] - 2026-11-23
+
+### 新增：导出配置的三层分诊（配置/规则 · DNS · IPv6）
+
+- `tools/windows/triage_export.py`：
+  - **A 配置/规则**：proxies 结构、旧字段混用、**规则 target 是否存在**（mihomo 遇到未知 target
+    会拒绝加载整份配置）、`MATCH` 兜底、节点域名是否被规则误命中；
+  - **B DNS**：多解析器对照 A/AAAA，检查私有 DoH 令牌；
+  - **C IPv6/连通**：A 与 AAAA 各做 TCP 探活，结合 `ip-version` 与本机 IPv6 可用性；
+  - `--emit-control` 产出**对照配置**（server→IP、去 `ipv6-prefer`、删私有 DoH 令牌，
+    `--global` 再加 `mode: global`），用于在同一台失败机器上 A/B。
+- `docs/11 §11.11.5`：三层分诊表与实测输出。
+
+### 实测
+
+```
+[OK ] A 配置  proxies: 74 个 {'anytls': 74}
+[OK ] A 配置  规则 target: 111 条规则，target 均存在
+[OK ] A 配置  MATCH 兜底: 有
+[OK ] B DNS   A=1 个 ['54.150.182.240'] / AAAA=0 个 []
+[!! ] C 连通  IPv4 54.150.182.240:14301: TimeoutError
+[!! ] C IPv6  ip-version: ['ipv6-prefer']；本机 IPv6 不可用
+```
+
+当天同一节点域名已观测到 4 个不同 A 记录（`18.138.78.126` / `47.131.14.168` /
+`54.116.187.243` / `54.150.182.240`）——解析视角差异是"部分网络通、部分不通"的硬证据。
+
 ## [1.5.1] - 2026-11-23
 
 ### 新增：导出配置在第三方客户端的失败面（docs/11 §11.11）

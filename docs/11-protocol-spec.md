@@ -327,3 +327,35 @@ python tools/windows/diagnose_export.py --sub exported.yaml
 输出逐项 `OK / !!`，并在解析不一致时直接标出"3 个不同 IP"。
 FlClash 侧对应日志关键词：`no such host`（解析）、`unsupported proxy type`（内核）、
 `i/o timeout`（端口不可达）。
+
+### 11.11.5 三层分诊（配置/规则 · DNS · IPv6）
+
+不用猜，用隔离实验：
+
+| 层 | 隔离手段 | 判定 |
+|---|---|---|
+| **A 配置/规则** | 把同一份 YAML 交给目标内核加载；工具检查每条规则的 target 是否存在、有无 `MATCH` 兜底 | 加载失败 → 规则/字段问题（mihomo 遇到未知 target 会拒绝整份配置） |
+| **B DNS** | 多解析器对照节点域名，并检查 `dns.proxy-server-nameserver` 令牌 | 解析为空/只有 CNAME → 私有 DoH 依赖或解析视角问题 |
+| **C IPv6** | 对 A 与 AAAA 各做一次 TCP 探活；同时看 `ip-version` 与本机 IPv6 是否真的可用 | A 通 AAAA 不通 → 去掉 `ipv6-prefer`；两族都不通 → 端口/网络层问题 |
+
+```bash
+python tools/windows/triage_export.py --sub exported.yaml --emit-control control.yaml
+```
+
+`control.yaml` 是**对照配置**：`server` 换成探活通过的 IP、去掉 `ip-version`、
+删掉私有 DoH 令牌（加 `--global` 还会设 `mode: global` 隔离分流）。
+把它和原配置丢到**同一台失败机器**上跑，差异直接指向出错层。
+
+**2026-11-23 实测（本环境）**：
+
+```
+[OK ] A 配置  proxies: 74 个 {'anytls': 74}
+[OK ] A 配置  规则 target: 111 条规则，target 均存在
+[OK ] A 配置  MATCH 兜底: 有
+[OK ] B DNS   解析 …: A=1 个 ['54.150.182.240'] / AAAA=0 个 []
+[!! ] C 连通  IPv4 54.150.182.240:14301: TimeoutError
+[!! ] C IPv6  ip-version: ['ipv6-prefer']；本机 IPv6 不可用
+```
+
+注意 `54.150.182.240` 又是**新 IP**——当天已观测到 `18.138.78.126 / 47.131.14.168 /
+54.116.187.243 / 54.150.182.240` 四个不同答案。
