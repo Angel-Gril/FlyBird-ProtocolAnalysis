@@ -275,3 +275,55 @@ python tests/test_protocol_vectors.py    # 向量断言（CI 已接入）
   （绑定会话、限速、TTL、设备指纹），否则等于把授权判定交给客户端。
 - 节点面（anytls / 私有 DoH）不在本规格内；`server` 字段在公网 DNS 上可能不可解析，
   属部署问题，不是解析问题。
+
+---
+
+## 11.11 导出配置在第三方客户端（FlClash 等）的失败面
+
+**这是部署/解析问题，不是协议问题**，但它是"官方 App 能连、导出后连不上"的常见根因，单独记一节。
+
+### 11.11.1 四个已知失败面（按出现概率）
+
+| # | 失败面 | 现象 | 判定 |
+|---|---|---|---|
+| 1 | **私有 DoH 令牌过期** | FlClash 报 `lookup <node>: no such host`，节点全红 | 订阅里的 `dns.proxy-server-nameserver` 是 `…/api-v2/<token>`，**令牌每次 download 轮换**；导出即过期 |
+| 2 | **节点域名公共解析不稳定** | 同一条配置，某些网络通、某些不通 | 实测同一域名三个解析器给出三个不同 IP，且历史上出现过 CNAME → NXDOMAIN |
+| 3 | **内核不支持 anytls** | 配置导入成功但节点全不可用；日志 `unsupported proxy type: anytls` | 7.3.1 起节点类型是 `anytls`（mihomo ≥ 1.19 才支持） |
+| 4 | **`ip-version: ipv6-prefer`** | 纯 IPv4 网络下连接失败或极慢 | 节点字段里带 `ip-version: ipv6-prefer` |
+
+### 11.11.2 实测：同一域名的解析结果不一致（2026-11-23 17:0x）
+
+`axbtapp-<rand>.llguanglisf.com` 的 A 记录：
+
+| 解析器 | 结果 |
+|---|---|
+| 系统 DNS（本机） | `18.138.78.126`（AWS ap-southeast-1） |
+| alidns DoH（第 1 次） | `47.131.14.168`（CNAME → `aflzzls-awssg02.ytcloud01.cc`） |
+| alidns DoH（第 2 次） | `54.116.187.243` |
+| doh.pub DoH | `47.131.14.168` |
+| AAAA | `2406:da12:e26:…`（AWS IPv6） |
+
+**同一时刻不同解析器、同一解析器不同时刻，答案都在变**——官方 App 用自带 DoH 拿到的是"服务端认为正确"的那一份；
+第三方客户端用本地 DNS，拿到哪一份全看运营商和时刻。
+
+> 顺带解释了一件事：**节点域名不是"被封"，而是"解析视角不同"**。
+> 早前本仓库记录过该域名 CNAME → NXDOMAIN，就是这种动态解析的一个快照。
+
+### 11.11.3 导出给第三方客户端的正确做法
+
+1. **把 `server` 解析成 IP 写回 YAML**，`sni` 保留（TLS 仍按 SNI 校验/伪装）；
+   IP 建议多解析器交叉 + 逐 IP 做一次 TCP 探活后再写入。
+2. **删掉或替换 `dns.proxy-server-nameserver`**：不要把私有 DoH 的过期令牌带进导出配置，
+   否则标准内核会优先用它、然后解析失败。
+3. **确认内核版本**支持 `anytls`（mihomo ≥ 1.19）；不支持就只能降级到仍下发 vless 的旧线路。
+4. 网络没有 IPv6 时，去掉 `ip-version: ipv6-prefer`（或改成 `ipv4`）。
+
+### 11.11.4 一键诊断
+
+```bash
+python tools/windows/diagnose_export.py --sub exported.yaml
+```
+
+输出逐项 `OK / !!`，并在解析不一致时直接标出"3 个不同 IP"。
+FlClash 侧对应日志关键词：`no such host`（解析）、`unsupported proxy type`（内核）、
+`i/o timeout`（端口不可达）。
