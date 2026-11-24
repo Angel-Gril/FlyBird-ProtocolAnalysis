@@ -156,6 +156,30 @@ sig = Ed25519(k2, "apex-sub-sign-v2\x00" ‖ body[0:L-64])     # 覆盖到 tag �
 > 客户端实测顺序是：长度 → `isEnvelope`（magic/版本）→ keyID → 签名 → 解密；
 > tag 由 GCM 解密内部校验。两者等价，但**先验签再解密**可以避免把未认证数据交给解析器。
 
+#### 11.5.6 入口地址不在信封内（与"节点能否连通"的分界）
+
+APXS 载荷解出来的节点形如：
+
+```yaml
+server: axbtapp-<rand>.llguanglisf.com   # 主机名，不含 A/AAAA 字面量
+port: 14301
+sni: <rand>.footcampbins.com
+ip-version: ipv6-prefer                  # 只是拨号偏好，不携带地址
+```
+
+解析该主机名需要订阅 `dns.proxy-server-nameserver` 指向的 DoH 端点、
+`purpose=doh` 的客户端身份，以及官方内核中的私有重定向实现。
+
+因此：
+
+- 本协议**不承诺**"拿到订阅即可直连"——入口发现属于客户端职责；
+- 第三方消费者（FlClash / Hiddify / 原生 sing-box）若要使用，必须自行解析并把地址写入
+  目标内核的配置形式（Mihomo 用 `hosts`，sing-box 用 outbound 的 `server` 字面量）；
+- 否则典型表现是 `dns resolve failed: couldn't find ip` / `domain resolver not found`，
+  这与解密、验签无关，不要往协议层排查。
+
+> 相关落差与验证判据见 [reports/12](../reports/12-协议输出与发布物之间的落差.md)。
+
 ---
 
 ## 11.6 远程配置 `apex-config-v1`

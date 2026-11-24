@@ -59,7 +59,7 @@ FlyBird-ProtocolAnalysis 是一套面向**多平台代理客户端**的协议逆
 | 🧯 **netns 隔离** | 客户端自带 nftables 编排，隔离运行不污染宿主网络 |
 | 🚀 **生产可用** | systemd oneshot + timer、Docker 非 root 镜像（GHCR 多架构）、原子发布、失败不覆盖 |
 | 🧪 **CI 自检** | 语法检查 + CTR 往返 + APXS 构造→解密 + 敏感串扫描 + 镜像构建 |
-| 📚 **完整文档** | 7 篇深度分析 + 20 篇过程报告（含失败记录与事故复盘） |
+| 📚 **完整文档** | 7 篇深度分析 + 22 篇过程报告（含失败记录与事故复盘） |
 
 ## 🧩 协议速览
 
@@ -86,6 +86,8 @@ ctr = Counter.new(32, prefix=nonce, initial_value=2, little_endian=False)
 plain = AES.new(k1, AES.MODE_CTR, counter=ctr).decrypt(ct)   # 解密够用
 # 需要完整性校验时：python src/apxs_verify.py sub.apxs     # tag + 签名 双验
 ```
+
+**边界**：本仓库只覆盖「数据是什么」；「用户连哪台机器」属于发布层，见 [reports/12](reports/12-协议输出与发布物之间的落差.md)。
 
 **规范哪里看**：字节级规格、门禁矩阵、错误语义、版本回归清单 → [docs/11-protocol-spec.md](docs/11-protocol-spec.md)；
 可直接调用的实现 → `src/apex_protocol.py`；一致性向量 → `tests/vectors.json`
@@ -345,7 +347,7 @@ rm -rf /opt/apex /etc/apex-fetch /var/lib/apex-fetch
 │   ├── 08-serverless.md          GitHub Actions / Cloudflare Worker 部署
 │   ├── 09-v1-legacy-endpoint.md  遗留明文线路（v1）深度对照
 │   └── 11-protocol-spec.md       **面板/订阅协议规格（规范性，配套向量）**
-├── reports/                  # 20 篇过程报告（已脱敏）
+├── reports/                  # 22 篇过程报告（已脱敏）
 ├── src/
 │   ├── apex_fetch.py            抓取器（--source v2|v1|both）
 │   ├── apex_protocol.py         **参考实现库（登录/下载/APXS/配置，可注入传输）**
@@ -465,3 +467,4 @@ LINUX DO — 新的理想型社区。
 <div align="center">
   <sub>Built for authorized security research · 仅用于授权范围内的安全研究</sub>
 </div>
+
