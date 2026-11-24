@@ -180,6 +180,60 @@ ip-version: ipv6-prefer                  # 只是拨号偏好，不携带地址
 
 > 相关落差与验证判据见 [reports/12](../reports/12-协议输出与发布物之间的落差.md)。
 
+#### 11.5.7 订阅载荷结构（解密后的 YAML）
+
+APXS 解出来的不是裸节点列表，而是一份**完整的 Mihomo 配置**。实测结构（7.3.1，74 节点）：
+
+| 顶层键 | 说明 |
+|---|---|
+| `proxies` | 74 个 `anytls` 节点（字段见下表） |
+| `proxy-groups` | 3 个：`select`（含分组引用）、`url-test`、`fallback` |
+| `rules` | 111 条；**前几条把厂商自有域名指到 `DIRECT`**（避免节点流量回环） |
+| `dns` | 见下 |
+| 其它 | `mixed-port` / `ipv6` / `mode` / `unified-delay` / `tcp-concurrent` / `profile` |
+
+节点字段（12 个，实测同订阅内不变量：**共用 1 个 `password`**、**每节点 1 个独立 `sni`**、
+**共用 1 个 `server` 主机名**、端口取自 `14301–14400` 的 74 个值，非连续）：
+
+| 字段 | 语义 | 消费者必须保留 |
+|---|---|---|
+| `name` | 显示名，**不是身份** | 否 |
+| `type` | `anytls` | 是 |
+| `server` | **主机名**，不含地址（见 §11.5.6） | 是（或替换为等价地址） |
+| `port` | 14301–14400 之一 | 是 |
+| `password` | AnyTLS 认证 | 是 |
+| `sni` | TLS 服务器名，随机子域 | 是 |
+| `client-fingerprint` | `chrome`（uTLS 指纹） | 是（否则指纹不符） |
+| `udp` | `true` | 视内核 |
+| `ip-version` | `ipv6-prefer`，**只是拨号偏好** | 否 |
+| `idle-session-check-interval` / `idle-session-timeout` / `min-idle-session` | AnyTLS 会话保活 | 否（性能相关） |
+
+`dns` 段（厂商模板原样，注意三点）：
+
+```yaml
+dns:
+  enable: true
+  ipv6: true
+  use-hosts: true          # ← 开了，但整份文件里没有 hosts 表
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  default-nameserver: [9 条]        # DoH / DoT / DoQ / 明文混合
+  proxy-server-nameserver: [1 条]   # 私有 DoH（token 每次下载轮换）
+  nameserver: [5 条]
+  fake-ip-filter: [28 条]
+```
+
+**三个值得记的点**
+
+1. **`use-hosts: true` 但无 `hosts` 表**——这是厂商模板预留的"地址注入槽位"。
+   第三方发布器补 `hosts` 是顺着设计做，不是 hack（这条解释了 §11.5.6 的落地方式）。
+2. **`proxy-server-nameserver` 只有 1 条**——节点入口解析是单点；该 token 随每次下载轮换，
+   过期后对第三方客户端完全无用（见 §11.10 边界）。
+3. **`ipv6: true`（DNS 层）与节点 `ip-version: ipv6-prefer` 一致**——两者必须成对出现，
+   只改一个会造成"偏好 v6 但 DNS 不返回 AAAA"的矛盾配置。
+
+> 与发布层的落差见 [reports/12](../reports/12-协议输出与发布物之间的落差.md)。
+
 ---
 
 ## 11.6 远程配置 `apex-config-v1`

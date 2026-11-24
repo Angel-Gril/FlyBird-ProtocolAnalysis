@@ -23,6 +23,19 @@
   GitHub Actions 六个 Secret 与临时文件清理；四张证书两种平台均支持。
 - README 同步补上交叉引用。
 
+## [1.6.1] - 2026-11-24
+
+### 新增：订阅载荷结构（`docs/11 §11.5.7`）
+
+APXS 解出来的是**完整 Mihomo 配置**，此前只写了加密与信封，没写载荷结构。补上：
+
+- 顶层键（proxies / proxy-groups / rules / dns / 其它）与实测规模（74 节点 / 3 组 / 111 规则）；
+- 节点 12 个字段的语义表，并标注哪些是**身份**（type/port/password/sni/指纹）、哪些只是偏好
+  （`name`、`ip-version`、会话保活）；
+- 同订阅内的不变量：共用 1 个 password、每节点独立 sni、共用 1 个 server 主机名、端口取自 14301–14400；
+- 三个易踩点：`use-hosts: true` 但无 `hosts` 表（预留地址注入槽位）、`proxy-server-nameserver` 单点且
+  token 轮换、`dns.ipv6` 必须与节点 `ip-version` 成对。
+
 ## [1.6.0] - 2026-11-24
 
 ### 新增：把"协议输出"与"发布物"的分界写清楚
